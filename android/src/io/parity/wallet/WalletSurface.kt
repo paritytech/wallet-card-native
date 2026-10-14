@@ -38,8 +38,8 @@ fun WalletSurface(modifier: Modifier = Modifier, assetsFolder: String = "wallet"
     DisposableEffect(tilt) { tilt.start(); onDispose { tilt.stop() } }
 
     val drag = if (tilt.hasMotion) Modifier else Modifier.pointerInput(Unit) {
-        detectDragGestures(onDragEnd = { tilt.filter.point(0.0, 0.0) }, onDragCancel = { tilt.filter.point(0.0, 0.0) }) { change, _ ->
-            tilt.filter.point((change.position.x / size.width - 0.5) * 2.0, (change.position.y / size.height - 0.5) * -2.0)
+        detectDragGestures(onDragEnd = { tilt.filter.point(null) }, onDragCancel = { tilt.filter.point(null) }) { change, _ ->
+            tilt.filter.point(doubleArrayOf((change.position.x / size.width - 0.5) * 2.0, (change.position.y / size.height - 0.5) * -2.0))
         }
     }
     AndroidEmbeddedExternalSurface(modifier.then(drag), isOpaque = false) {

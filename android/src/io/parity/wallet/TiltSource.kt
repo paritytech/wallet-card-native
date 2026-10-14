@@ -5,7 +5,9 @@
 //   x = turn about the device's y axis (right edge away from you = +)
 //   y = turn about the device's x axis (top edge toward you = +)
 // The turn is integrated with a leak (`neutralTau`), so any holding angle becomes "level" and only
-// movement moves the light. The card is never rotated on screen.
+// movement moves the light. Level is `rest` (where the creases catch the light best), and a turn moves the
+// light by amplitude · tanh(turn / softDeg), so ordinary hand sway already plays the highlights across the
+// creases. The card is never rotated on screen.
 // Without a gyroscope it falls back to gravity angles (blind to turns of an upright phone about vertical).
 // Axes are the device's natural (portrait) ones: lock the activity to portrait, or remap for rotation.
 package io.parity.wallet
@@ -19,13 +21,17 @@ import kotlin.math.asin
 import kotlin.math.atan2
 import kotlin.math.exp
 import kotlin.math.sqrt
+import kotlin.math.tanh
 
-class TiltFilter(private val rangeDeg: Double, private val neutralTau: Double, private val smoothing: Double) {
+class TiltFilter(
+    private val rest: DoubleArray, private val amplitude: Double, private val softDeg: Double,
+    private val neutralTau: Double, private val smoothing: Double,
+) {
     private var turnX = 0.0; private var turnY = 0.0        // degrees about device x, y
     private var baseBeta = Double.NaN; private var baseGamma = 0.0
-    @Volatile private var targetX = 0.0
-    @Volatile private var targetY = 0.0
-    private var valueX = 0.0; private var valueY = 0.0
+    @Volatile private var targetX = rest[0]
+    @Volatile private var targetY = rest[1]
+    private var valueX = rest[0]; private var valueY = rest[1]
 
     /** Gyroscope rate about device x and y, degrees per second. */
     fun rotate(rateX: Double, rateY: Double, dt: Double) {
@@ -44,12 +50,15 @@ class TiltFilter(private val rangeDeg: Double, private val neutralTau: Double, p
         aim(gamma - baseGamma, beta - baseBeta)
     }
 
-    /** Direct target, −1…1, y up (touch fallback). */
-    fun point(x: Double, y: Double) { targetX = x; targetY = y }
+    /** Touch fallback: position −1…1, y up; null = back to rest. */
+    fun point(p: DoubleArray?) {
+        targetX = rest[0] + (p?.get(0) ?: 0.0) * amplitude
+        targetY = rest[1] + (p?.get(1) ?: 0.0) * amplitude
+    }
 
     private fun aim(aboutY: Double, aboutX: Double) {
-        targetX = (aboutY / rangeDeg).coerceIn(-1.0, 1.0)
-        targetY = (aboutX / rangeDeg).coerceIn(-1.0, 1.0)
+        targetX = rest[0] + amplitude * tanh(aboutY / softDeg)
+        targetY = rest[1] + amplitude * tanh(aboutX / softDeg)
     }
 
     /** Called once per frame on the render thread; returns the smoothed (x, y). */
@@ -62,7 +71,7 @@ class TiltFilter(private val rangeDeg: Double, private val neutralTau: Double, p
 }
 
 class TiltSource(context: Context, params: WalletParams) : SensorEventListener {
-    val filter = TiltFilter(params.rangeDeg, params.neutralTau, params.smoothing)
+    val filter = TiltFilter(params.rest, params.amplitude, params.softDeg, params.neutralTau, params.smoothing)
     private val sensors = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private val gyro: Sensor? = sensors.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
     private val gravity: Sensor? = sensors.getDefaultSensor(Sensor.TYPE_GRAVITY) ?: sensors.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)

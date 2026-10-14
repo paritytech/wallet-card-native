@@ -39,7 +39,9 @@ class WalletParams(json: JSONObject) {
     val maxWidth = layout.f("maxWidth")
     val creases = json.getJSONObject("relief").f("creases")
     val guard = json.getJSONObject("light").f("guard")
-    val rangeDeg = tilt.getDouble("rangeDeg")
+    val rest = tilt.getJSONArray("rest").let { doubleArrayOf(it.getDouble(0), it.getDouble(1)) }
+    val amplitude = tilt.getDouble("amplitude")
+    val softDeg = tilt.getDouble("softDeg")
     val neutralTau = tilt.getDouble("neutralTau")
     val smoothing = tilt.getDouble("smoothing")
 }

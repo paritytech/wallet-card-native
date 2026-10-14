@@ -16,7 +16,12 @@
     "guard": 1
   },
   "tilt": {
-    "rangeDeg": 20,
+    "rest": [
+      0.2,
+      -0.4
+    ],
+    "amplitude": 0.55,
+    "softDeg": 8,
     "neutralTau": 4.2,
     "smoothing": 5.0
   }

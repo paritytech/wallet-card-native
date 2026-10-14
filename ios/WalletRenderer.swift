@@ -25,7 +25,7 @@ public struct WalletDescription: Decodable {
 public struct WalletParams: Decodable {
     public struct Layout: Decodable { public let widthFraction, maxWidth: Float; public let background: String }
     public struct Render: Decodable { public let maxScale, supersample: Float }
-    public struct Tilt: Decodable { public let rangeDeg, neutralTau, smoothing: Double }
+    public struct Tilt: Decodable { public let rest: [Double]; public let amplitude, softDeg, neutralTau, smoothing: Double }
     public struct Relief: Decodable { public let creases: Float }
     public struct Light: Decodable { public let `guard`: Float }
     public let layout: Layout

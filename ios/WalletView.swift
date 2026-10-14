@@ -65,7 +65,7 @@ public struct WalletView: UIViewRepresentable {
 
         @objc func pan(_ g: UIPanGestureRecognizer) {
             guard let tilt, !tilt.hasGyro, let v = g.view else { return }
-            if g.state == .ended || g.state == .cancelled { tilt.filter.point([0, 0]); return }
+            if g.state == .ended || g.state == .cancelled { tilt.filter.point(nil); return }
             let p = g.location(in: v)
             tilt.filter.point([Double(p.x / v.bounds.width - 0.5) * 2, Double(p.y / v.bounds.height - 0.5) * -2])
         }

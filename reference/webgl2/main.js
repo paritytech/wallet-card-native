@@ -15,9 +15,9 @@ try {
 
   addEventListener('pointermove', e => {
     if (source !== 'pointer' || e.pointerType === 'touch') return;
-    tilt.point((e.clientX / innerWidth - 0.5) * 2, (e.clientY / innerHeight - 0.5) * -2);
+    tilt.point([(e.clientX / innerWidth - 0.5) * 2, (e.clientY / innerHeight - 0.5) * -2]);
   });
-  document.addEventListener('pointerleave', () => { if (source === 'pointer') tilt.point(0, 0); });
+  document.addEventListener('pointerleave', () => { if (source === 'pointer') tilt.point(null); });
   // DeviceMotionEvent.rotationRate is in the device frame, degrees per second; browsers report alpha
   // about x and beta about y (checked in Chromium with the Android emulator's gyroscope)
   const onMotion = e => {

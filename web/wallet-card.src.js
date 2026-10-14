@@ -40,15 +40,19 @@
   var needsPermission = !!(D && typeof D.requestPermission === 'function');
   listenMotion();
 
+  // level = p.rest; a turn moves the light by amplitude · tanh(turn / softDeg), see wallet-native/reference/tilt.js
   function Tilt(p) {
-    this.p = p; this.turn = [0, 0]; this.target = [0, 0]; this.value = [0, 0];
+    this.p = p; this.turn = [0, 0]; this.target = p.rest.slice(); this.value = p.rest.slice();
   }
   Tilt.prototype.rotate = function (rateX, rateY, dt) {
-    var leak = Math.exp(-dt / this.p.neutralTau);
+    var leak = Math.exp(-dt / this.p.neutralTau), k = this.p.amplitude, s = this.p.softDeg;
     this.turn[0] = (this.turn[0] + rateX * dt) * leak;
     this.turn[1] = (this.turn[1] + rateY * dt) * leak;
-    var c = function (v) { return Math.max(-1, Math.min(1, v)); };
-    this.target = [c(this.turn[1] / this.p.rangeDeg), c(this.turn[0] / this.p.rangeDeg)];
+    this.target = [this.p.rest[0] + k * Math.tanh(this.turn[1] / s), this.p.rest[1] + k * Math.tanh(this.turn[0] / s)];
+  };
+  Tilt.prototype.point = function (q) {
+    var r = this.p.rest, k = this.p.amplitude;
+    this.target = q ? [r[0] + q[0] * k, r[1] + q[1] * k] : r.slice();
   };
   Tilt.prototype.step = function (dt) {
     var k = 1 - Math.exp(-dt * this.p.smoothing);
@@ -199,7 +203,7 @@
       var p = self._assets.params.render, scale = Math.min(devicePixelRatio || 1, p.maxScale) * p.supersample;
       var pw = Math.round(r.width * scale), ph = Math.round(r.height * scale);
       if (c.width !== pw || c.height !== ph) { c.width = pw; c.height = ph; }
-      if (self._pointer || !motion.active) self._tilt.target = (self._pointer || [0, 0]).slice();
+      if (self._pointer || !motion.active) self._tilt.point(self._pointer);
       var tilt = self._tilt.step(dt);
       self._gl.viewport(0, 0, pw, ph);
       self._draw(c.clientWidth || r.width, c.clientHeight || r.height, self.hasAttribute('shadow'), tilt);

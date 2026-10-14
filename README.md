@@ -145,7 +145,9 @@ All of these are data, not colour. Decode them without colour management and upl
 | `render.maxScale`, `supersample` | 2, 1.5 | iOS render density = min(screen scale, 2) × 1.5, as the detector's canvas |
 | `relief.creases` | 1 | 0 = the detector's 1-texel relief exactly; 1 = crease-scale relief (§5) |
 | `light.guard` | 1 | 0 = the detector's light path; 1 = the light never lines up with the view, so the whole card can't flood with highlight (§5) |
-| `tilt.rangeDeg` | 20 | phone turn (degrees) that moves the light fully (±1) |
+| `tilt.rest` | [0.2, −0.4] | where the light sits while the phone is held still (shader tilt units); chosen where the creases catch the light best |
+| `tilt.amplitude` | 0.55 | how far a turn can move the light from `rest` |
+| `tilt.softDeg` | 8 | degrees of turn for most of that travel: 3° moves the light 0.2, 6° moves it 0.35, then it saturates |
 | `tilt.neutralTau` | 4.2 | seconds for a new holding angle to become "level" |
 | `tilt.smoothing` | 5.0 | easing rate of the light (1/s); the detector's 0.08 per-frame lerp at 60 fps |
 
@@ -187,7 +189,7 @@ The same filter is implemented three times. Keep them in step: `reference/tilt.j
   - `x` = turn about the device's y axis (right edge away from you = +)
   - `y` = turn about the device's x axis (top edge toward you = +)
 - **Leaky integration.** `turn = (turn + rate·dt) · exp(−dt / neutralTau)`. Whatever angle the phone is held at becomes "level" within a few seconds, so only movement moves the light. It also cancels gyro drift. It is the same as a neutral pose that slowly drifts toward the current one.
-- **Target.** `target = clamp(turn / rangeDeg, −1, 1)`.
+- **Target.** `target = rest + amplitude · tanh(turn / softDeg)`, per axis. Level is not the shader's (0, 0) but `rest`, measured as the light position where the creases glint most without the leather flooding (`creases` metric over a 9 × 9 tilt grid). The tanh makes the first few degrees of ordinary hand sway do most of the work, and keeps big turns away from the flooded corner.
 - **Easing.** Once per frame: `value += (target − value) · (1 − exp(−dt · smoothing))`. This is the shader's `uTilt`.
 - **Why not the accelerometer.** The accelerometer only sees gravity: it is blind to turning an upright phone about the vertical axis, and it is noisy. Without a gyroscope, Android falls back to gravity angles (`TYPE_GRAVITY`, else `TYPE_ACCELEROMETER`). Without any sensor (the iOS Simulator, some emulators), dragging a finger moves the light, like the detector's pointer.
 - **Orientation.** Axes are the device's natural portrait ones. Lock the screen to portrait, or swap and negate x/y for landscape.
