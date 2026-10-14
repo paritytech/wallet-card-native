@@ -23,7 +23,7 @@
 <body>
 <main>
   <h1>Port comparison</h1>
-  <p>GLES = shaders/*.glsl via WebGL 2 (what Android runs). Metal = reference/results/metal_*.png from reference/metal/run.sh. Two checks: <b>GLES vs detector</b> with creases = 0 (Material Detector's own WebGL 1 shader; proves the port), and <b>Metal vs GLES</b> with the shipped params.json (proves iOS = Android). All at the image's own size over the stage colour; card pixels only. Target: mean ≤ 1/255 and ≤ 0.1 % of pixels off by more than 8/255.</p>
+  <p>GLES = shaders/*.glsl via WebGL 2 (what Android runs). Metal = reference/results/metal_*.png from reference/metal/run.sh. Two checks: <b>GLES vs detector</b> with creases = 0 and guard = 0 (Material Detector's own WebGL 1 shader; proves the port), and <b>Metal vs GLES</b> with the shipped params.json (proves iOS = Android). All at the image's own size over the stage colour; card pixels only. Target: mean ≤ 1/255 and ≤ 0.1 % of pixels off by more than 8/255.</p>
   <table><thead><tr><th>tilt</th><th>GLES vs detector, mean</th><th>&gt;8</th><th>Metal vs GLES, mean</th><th>&gt;8</th><th>max Δ</th></tr></thead><tbody id="rows"></tbody></table>
   <div class="row" id="figs"></div>
 </main>
@@ -83,7 +83,7 @@ const full = [-1, 1, 1, -1], results = [];
 const fmt = (d, k, lim) => d ? `<span class="${d[k] <= lim ? 'ok' : 'bad'}">${d[k].toFixed(k === 'mean' ? 3 : 3)}${k === 'over' ? ' %' : ''}</span>` : '—';
 for (const t of TILTS) {
   const gold = draw(G.gl, () => golden(t));
-  const gles0 = draw(P.gl, () => port.wallet(full, t, 0));
+  const gles0 = draw(P.gl, () => port.wallet(full, t, 0, 0));
   const gles = draw(P.gl, () => port.wallet(full, t));
   const metal = await loadPNG(`results/metal_${t[0]}_${t[1]}.png`);
   const dg = diff(gold, gles0), dm = diff(gles, metal);
@@ -94,10 +94,10 @@ for (const t of TILTS) {
     const figs = document.getElementById('figs');
     const add = (el, cap) => { const f = document.createElement('figure'); f.append(el); f.insertAdjacentHTML('beforeend', `<figcaption>${cap}</figcaption>`); figs.append(f); };
     add(toCanvas(gold), 'detector shader, tilt 0.6, -0.4');
-    add(toCanvas(gles0), 'GLES port, creases 0');
+    add(toCanvas(gles0), 'GLES port, creases 0, guard 0');
     add(toCanvas(gles), 'GLES port, shipped params');
     if (metal) add(toCanvas(metal), 'Metal port, shipped params');
-    add(heat(gold, gles0), 'GLES (creases 0) vs detector, |Δ| × 16');
+    add(heat(gold, gles0), 'GLES (creases 0, guard 0) vs detector, |Δ| × 16');
     if (metal) add(heat(gles, metal), 'Metal vs GLES, |Δ| × 16');
   }
 }

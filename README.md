@@ -144,6 +144,7 @@ All of these are data, not colour. Decode them without colour management and upl
 | `layout.background` | `#ececef` | the detector's stage colour (the views are transparent; this is for the demos and references) |
 | `render.maxScale`, `supersample` | 2, 1.5 | iOS render density = min(screen scale, 2) × 1.5, as the detector's canvas |
 | `relief.creases` | 1 | 0 = the detector's 1-texel relief exactly; 1 = crease-scale relief (§5) |
+| `light.guard` | 1 | 0 = the detector's light path; 1 = the light never lines up with the view, so the whole card can't flood with highlight (§5) |
 | `tilt.rangeDeg` | 20 | phone turn (degrees) that moves the light fully (±1) |
 | `tilt.neutralTau` | 4.2 | seconds for a new holding angle to become "level" |
 | `tilt.smoothing` | 5.0 | easing rate of the light (1/s); the detector's 0.08 per-frame lerp at 60 fps |
@@ -170,6 +171,7 @@ All of these are data, not colour. Decode them without colour management and upl
 - **Indexed uniforms.** Uniform arrays are indexed directly (ES 3.00 / MSL) instead of the ES 1.00 loop.
 - **Removed.** The region highlight (`uHi`), mask view (`uMask`) and pulse (`uT`) are gone, and so is the CSS `rotateY/rotateX`. The card no longer turns on screen; the phone turning replaces it.
 - **Crease-scale relief** (`uCrease`, `params.relief.creases`). The detector measures the slope between neighbouring texels, which treats a pore and a crease alike. With `creases = 1`, the slope is measured across ±3 texels and three rows. Creases and folds then tilt the normal and catch the light, while single-pixel pores average out. This costs 12 extra texture reads. Set it to 0 to match the detector exactly; `compare.html` checks the port in that mode.
+- **Head-on guard** (`uGuard`, `params.light.guard`). In the detector, at a tilt of about (0.23, −0.4) the light sits straight behind the viewer. The narrow leather highlight then lines up with every flat pixel at once, and the pores turn the whole card into a bright grain. With `guard = 1`, tipping the top away lowers the light only to 0.3 (`L.y = 0.6 + y·0.3` for y < 0), about 19° off the view axis, so highlights stay on creases, stitches and metal. Tilting toward you and sideways is unchanged.
 
 ## 6. Motion → light
 
@@ -242,7 +244,7 @@ cd android/sample && ./gradlew assembleDebug    # → app/build/outputs/apk/debu
 1. `node tools/bake.mjs`
 2. `reference/metal/run.sh`: renders `reference/results/metal_<x>_<y>.png` (card alone, six tilts) and `scene_<x>_<y>.png` (390 × 844 pt phone screens at 3×).
 3. Open `reference/compare.html`. It checks:
-   - **GLES vs detector** at `creases = 0`: proves the shader port;
+   - **GLES vs detector** at `creases = 0`, `guard = 0`: proves the shader port;
    - **Metal vs GLES** at the shipped params: proves iOS = Android.
 
    Targets: mean ≤ 1/255 and ≤ 0.1 % of pixels off by more than 8/255. Both currently pass at < 0.0001 / 255.

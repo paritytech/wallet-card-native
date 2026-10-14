@@ -38,6 +38,7 @@ class WalletParams(json: JSONObject) {
     val widthFraction = layout.f("widthFraction")
     val maxWidth = layout.f("maxWidth")
     val creases = json.getJSONObject("relief").f("creases")
+    val guard = json.getJSONObject("light").f("guard")
     val rangeDeg = tilt.getDouble("rangeDeg")
     val neutralTau = tilt.getDouble("neutralTau")
     val smoothing = tilt.getDouble("smoothing")
@@ -119,6 +120,7 @@ class WalletRenderer(private val src: WalletAssets) {
         glUniform2f(glGetUniformLocation(p, "uTex"), card.imageWidth.toFloat(), card.imageHeight.toFloat())
         glUniform2f(glGetUniformLocation(p, "uTilt"), tiltX, tiltY)
         glUniform1f(glGetUniformLocation(p, "uCrease"), params.creases)
+        glUniform1f(glGetUniformLocation(p, "uGuard"), params.guard)
         listOf("uMetal", "uRough", "uRelief", "uSheen", "uCoat").forEachIndexed { i, n ->
             glUniform1fv(glGetUniformLocation(p, n), 6, regionArrays[i], 0)
         }

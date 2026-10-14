@@ -128,7 +128,7 @@ export function goldenRenderer(gl, a) {
 // ---- the port (WebGL 2 = OpenGL ES 3.0, the same calls Android makes through GLES30) ----
 export function portRenderer(gl, a) {
   const wallet = program(gl, a.src.vert, a.src.frag), shadow = program(gl, a.src.vert, a.src.shadowFrag);
-  const UW = uniforms(gl, wallet, ['uRect', 'uImg', 'uReg', 'uTex', 'uTilt', 'uCrease', 'uMetal', 'uRough', 'uRelief', 'uSheen', 'uCoat']);
+  const UW = uniforms(gl, wallet, ['uRect', 'uImg', 'uReg', 'uTex', 'uTilt', 'uCrease', 'uGuard', 'uMetal', 'uRough', 'uRelief', 'uSheen', 'uCoat']);
   const US = uniforms(gl, shadow, ['uRect', 'uShadow', 'uOpacity']);
   gl.bindVertexArray(gl.createVertexArray());            // no attributes: the quad comes from gl_VertexID
   const img = texture(gl, 0, gl.LINEAR);
@@ -148,11 +148,11 @@ export function portRenderer(gl, a) {
       gl.uniform4f(US.uRect, ...rect); gl.uniform1i(US.uShadow, 2); gl.uniform1f(US.uOpacity, a.desc.shadow.opacity);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     },
-    // crease: params.json relief.creases; pass 0 to reproduce the detector exactly
-    wallet(rect, tilt, crease = a.params.relief.creases) {
+    // crease, guard: params.json relief.creases, light.guard; pass 0, 0 to reproduce the detector exactly
+    wallet(rect, tilt, crease = a.params.relief.creases, guard = a.params.light.guard) {
       gl.useProgram(wallet);
       gl.uniform4f(UW.uRect, ...rect); gl.uniform1i(UW.uImg, 0); gl.uniform1i(UW.uReg, 1);
-      gl.uniform2f(UW.uTex, a.desc.image.width, a.desc.image.height); gl.uniform2f(UW.uTilt, tilt[0], tilt[1]); gl.uniform1f(UW.uCrease, crease);
+      gl.uniform2f(UW.uTex, a.desc.image.width, a.desc.image.height); gl.uniform2f(UW.uTilt, tilt[0], tilt[1]); gl.uniform1f(UW.uCrease, crease); gl.uniform1f(UW.uGuard, guard);
       for (const k in R) gl.uniform1fv(UW[k], R[k]);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     },

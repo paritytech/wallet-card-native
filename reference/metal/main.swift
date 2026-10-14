@@ -15,7 +15,11 @@ import UniformTypeIdentifiers
 let root = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
 let assets = root.appendingPathComponent("assets")
 let out = root.appendingPathComponent("reference/results")
-let tilts: [SIMD2<Float>] = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [0.6, -0.4]]
+// optional: tilts as "x,y;x,y;…" in argv[2] (card-only renders, no phone screens)
+let custom: [SIMD2<Float>]? = CommandLine.arguments.count > 2
+    ? CommandLine.arguments[2].split(separator: ";").map { p in let v = p.split(separator: ",").map { Float($0)! }; return SIMD2(v[0], v[1]) }
+    : nil
+let tilts: [SIMD2<Float>] = custom ?? [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [0.6, -0.4]]
 
 let device = MTLCreateSystemDefaultDevice()!
 let source = try String(contentsOf: root.appendingPathComponent("shaders/wallet.metal"), encoding: .utf8)
@@ -66,6 +70,6 @@ for t in tilts {
     try render(width: w, height: h, to: "metal_\(label(t.x))_\(label(t.y)).png") { renderer.encodeWallet($0, clipRect: full, tilt: t) }
 }
 let scene = CGSize(width: 390, height: 844)
-for t in tilts {
+for t in custom == nil ? tilts : [] {
     try render(width: 390 * 3, height: 844 * 3, to: "scene_\(label(t.x))_\(label(t.y)).png") { renderer.encode($0, size: scene, tilt: t) }
 }

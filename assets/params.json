@@ -12,6 +12,9 @@
   "relief": {
     "creases": 1
   },
+  "light": {
+    "guard": 1
+  },
   "tilt": {
     "rangeDeg": 20,
     "neutralTau": 4.2,

@@ -13,6 +13,7 @@ uniform vec2 uTex;        // image.png size in pixels
 uniform vec2 uTilt;       // smoothed tilt, x right, y up, each -1..1
 uniform float uMetal[6], uRough[6], uRelief[6], uSheen[6], uCoat[6];
 uniform float uCrease;    // params.json relief.creases: 0 = the detector's 1-texel relief, 1 = crease scale
+uniform float uGuard;     // params.json light.guard: 0 = the detector's light path, 1 = never head-on
 
 float ss(float e0, float e1, float x) { float t = clamp((x - e0) / (e1 - e0), 0., 1.); return t * t * (3. - 2. * t); }
 float lum(vec2 p) { vec4 c = texture(uImg, p); return dot(c.rgb, vec3(.3, .59, .11)) * c.a; }
@@ -59,7 +60,10 @@ void main() {
 
   // tilt moves the light and the reflected studio, never the geometry
   vec3 V = vec3(0., 0., 1.);
-  vec3 L = normalize(vec3(.35 - uTilt.x * 1.5, .6 + uTilt.y * 1.5, .85));
+  // not in the detector: with uGuard, tipping the top away lowers the light only to .3 (≈ 19° off the view axis),
+  // so the narrow highlight can never line up with the flat leather and flood the whole card
+  float ly = .6 + uTilt.y * (uTilt.y < 0. ? mix(1.5, .3, uGuard) : 1.5);
+  vec3 L = normalize(vec3(.35 - uTilt.x * 1.5, ly, .85));
   vec3 H = normalize(L + V);
   float ndl = max(dot(N, L), 0.), ndh = max(dot(N, H), 0.);
   vec3 R = reflect(-V, N); R.xy += vec2(-uTilt.x, uTilt.y) * 1.1; R = normalize(R);

@@ -27,10 +27,12 @@ public struct WalletParams: Decodable {
     public struct Render: Decodable { public let maxScale, supersample: Float }
     public struct Tilt: Decodable { public let rangeDeg, neutralTau, smoothing: Double }
     public struct Relief: Decodable { public let creases: Float }
+    public struct Light: Decodable { public let `guard`: Float }
     public let layout: Layout
     public let render: Render
     public let tilt: Tilt
     public let relief: Relief
+    public let light: Light
 }
 
 public enum WalletError: Error { case missing(String), badImage(String), noFunction(String) }
@@ -111,7 +113,7 @@ public final class WalletRenderer {
 
     /// The wallet quad alone. `clipRect` = (left, top, right, bottom) in clip space.
     public func encodeWallet(_ enc: MTLRenderCommandEncoder, clipRect: SIMD4<Float>, tilt: SIMD2<Float>) {
-        // WalletUniforms in wallet.metal: tex.xy, tilt.xy, 6 × (metal, rough, relief, sheen, coat), crease
+        // WalletUniforms in wallet.metal: tex.xy, tilt.xy, 6 × (metal, rough, relief, sheen, coat), crease, guard
         var u: [Float] = [Float(description.image.width), Float(description.image.height), tilt.x, tilt.y]
         for i in 0..<6 {
             if i < description.materials.count {
@@ -122,6 +124,7 @@ public final class WalletRenderer {
             }
         }
         u.append(params.relief.creases)
+        u.append(params.light.guard)
         var rect = clipRect
         enc.setRenderPipelineState(walletPipeline)
         enc.setVertexBytes(&rect, length: MemoryLayout<SIMD4<Float>>.size, index: 0)

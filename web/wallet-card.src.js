@@ -127,6 +127,7 @@
       gl.uniform2f(loc(wallet, 'uTex'), a.card.image.width, a.card.image.height);
       gl.uniform2f(loc(wallet, 'uTilt'), tilt[0], tilt[1]);
       gl.uniform1f(loc(wallet, 'uCrease'), a.params.relief.creases);
+      gl.uniform1f(loc(wallet, 'uGuard'), a.params.light.guard);
       for (var k in R) gl.uniform1fv(loc(wallet, k), R[k]);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };

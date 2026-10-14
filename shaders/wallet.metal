@@ -18,13 +18,14 @@ vertex QuadOut quad_vertex(uint vid [[vertex_id]], constant float4 &rect [[buffe
   return o;
 }
 
-// Matches WalletRenderer.swift: 35 floats, 140 bytes.
+// Matches WalletRenderer.swift: 36 floats, 144 bytes.
 struct Region { float metal, rough, relief, sheen, coat; };
 struct WalletUniforms {
   float2 tex;                      // image.png size in pixels
   float2 tilt;                     // smoothed tilt, x right, y up, each -1..1
   Region regions[6];
   float crease;                    // params.json relief.creases
+  float guard;                     // params.json light.guard
 };
 
 constexpr sampler linearClamp(filter::linear, address::clamp_to_edge);
@@ -73,7 +74,8 @@ fragment float4 wallet_fragment(QuadOut in [[stage_in]],
 
   float2 t = u.tilt;
   float3 V = float3(0., 0., 1.);
-  float3 L = normalize(float3(.35 - t.x * 1.5, .6 + t.y * 1.5, .85));
+  float ly = .6 + t.y * (t.y < 0. ? mix(1.5, .3, u.guard) : 1.5);   // light.guard: never head-on
+  float3 L = normalize(float3(.35 - t.x * 1.5, ly, .85));
   float3 H = normalize(L + V);
   float ndl = max(dot(N, L), 0.), ndh = max(dot(N, H), 0.);
   float3 R = reflect(-V, N); R.xy += float2(-t.x, t.y) * 1.1; R = normalize(R);
