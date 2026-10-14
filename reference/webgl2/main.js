@@ -18,20 +18,22 @@ try {
     tilt.point((e.clientX / innerWidth - 0.5) * 2, (e.clientY / innerHeight - 0.5) * -2);
   });
   document.addEventListener('pointerleave', () => { if (source === 'pointer') tilt.point(0, 0); });
-  // DeviceMotionEvent.rotationRate is in the device frame, degrees per second: beta about x, gamma about y
+  // DeviceMotionEvent.rotationRate is in the device frame, degrees per second; browsers report alpha
+  // about x and beta about y (checked in Chromium with the Android emulator's gyroscope)
   const onMotion = e => {
     const r = e.rotationRate;
-    if (!r || r.beta == null || r.gamma == null) return;
+    if (!r || r.alpha == null || r.beta == null) return;
     const now = performance.now() / 1000, dt = lastSample ? Math.min(0.1, now - lastSample) : 0;
     lastSample = now;
     source = 'motion';
-    tilt.rotate(r.beta, r.gamma, dt);
+    tilt.rotate(r.alpha, r.beta, dt);
   };
+  addEventListener('devicemotion', onMotion);
   const D = window.DeviceMotionEvent;
-  if (D && typeof D.requestPermission === 'function') {          // iOS Safari: permission from a tap
+  if (D && typeof D.requestPermission === 'function') {          // iOS Safari (and recent Chromium): permission from a tap
     motionBtn.hidden = false;
-    motionBtn.onclick = () => D.requestPermission().then(s => { if (s === 'granted') { addEventListener('devicemotion', onMotion); motionBtn.hidden = true; } }).catch(() => {});
-  } else addEventListener('devicemotion', onMotion);
+    motionBtn.onclick = () => D.requestPermission().then(() => { motionBtn.hidden = true; }).catch(() => {});
+  }
 
   let last = 0;
   const frame = t => {

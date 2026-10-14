@@ -178,7 +178,7 @@ The same filter is implemented three times. Keep them in step: `reference/tilt.j
 - **Input.** The gyroscope rate in the phone's own frame (x right, y up the screen, z out of the screen, right-hand rule). Both platforms use the same axes.
   - iOS: `CMDeviceMotion.rotationRate`, bias-corrected by Core Motion.
   - Android: `TYPE_GYROSCOPE`.
-  - Web: `devicemotion.rotationRate` (beta = about x, gamma = about y).
+  - Web: `devicemotion.rotationRate`, where browsers report alpha about x and beta about y (checked in Android WebView).
 
   The Android direction is verified on the emulator's virtual gyroscope, and it matches the reference renders. The iOS direction follows Core Motion's documented right-hand convention but has not yet been checked on a real iPhone; the Simulator has no gyroscope. Check it once on a device: tipping the top edge toward you should brighten the button.
 - **Mapping.** This is exactly the motion the detector imitated with CSS `rotateY` / `rotateX`.

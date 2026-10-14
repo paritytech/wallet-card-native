@@ -23,6 +23,7 @@ export class TiltFilter {
     this.value = [0, 0];
   }
   // gyroscope: rotation rate about device x and y in degrees per second
+  // (from DeviceMotionEvent.rotationRate: alpha is about x, beta about y)
   rotate(rateX, rateY, dt) {
     const leak = Math.exp(-dt / this.neutralTau);
     this.turn[0] = (this.turn[0] + rateX * dt) * leak;
