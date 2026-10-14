@@ -1,0 +1,20 @@
+{
+  "_comment": "Hand-tuned runtime constants. Every renderer reads this file; nothing here is baked.",
+  "layout": {
+    "widthFraction": 0.78,
+    "maxWidth": 820,
+    "background": "#ececef"
+  },
+  "render": {
+    "maxScale": 2,
+    "supersample": 1.5
+  },
+  "relief": {
+    "creases": 1
+  },
+  "tilt": {
+    "rangeDeg": 20,
+    "neutralTau": 4.2,
+    "smoothing": 5.0
+  }
+}

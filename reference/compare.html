@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Port comparison</title>
+<style>
+  :root { --bg: #f5f5f7; --card: #fff; --ink: #1d1d1f; --muted: #86868b; --ok: #1a7f37; --bad: #b00020; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font: 14px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; }
+  main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 22px; letter-spacing: -.02em; margin: 0 0 4px; }
+  p { color: var(--muted); margin: 0 0 20px; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 14px; overflow: hidden; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 10px 14px; border-top: 1px solid #f0f0f2; }
+  th { color: var(--muted); font-weight: 500; border-top: 0; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); }
+  .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: 16px; }
+  figure { margin: 0; background: var(--card); border-radius: 14px; padding: 10px; }
+  figure canvas, figure img { width: 100%; display: block; border-radius: 8px; }
+  figcaption { color: var(--muted); font-size: 12px; margin-top: 6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Port comparison</h1>
+  <p>GLES = shaders/*.glsl via WebGL 2 (what Android runs). Metal = reference/results/metal_*.png from reference/metal/run.sh. Two checks: <b>GLES vs detector</b> with creases = 0 (Material Detector's own WebGL 1 shader; proves the port), and <b>Metal vs GLES</b> with the shipped params.json (proves iOS = Android). All at the image's own size over the stage colour; card pixels only. Target: mean ≤ 1/255 and ≤ 0.1 % of pixels off by more than 8/255.</p>
+  <table><thead><tr><th>tilt</th><th>GLES vs detector, mean</th><th>&gt;8</th><th>Metal vs GLES, mean</th><th>&gt;8</th><th>max Δ</th></tr></thead><tbody id="rows"></tbody></table>
+  <div class="row" id="figs"></div>
+</main>
+<script type="module">
+import { loadAssets, goldenRenderer, portRenderer, hexColor } from './common.js';
+const TILTS = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [0.6, -0.4]];
+const a = await loadAssets();
+const W = a.desc.image.width, H = a.desc.image.height, bg = hexColor(a.params.layout.background);
+
+function glCanvas(kind) {
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const gl = c.getContext(kind, { premultipliedAlpha: true, antialias: false, preserveDrawingBuffer: true });
+  return { c, gl };
+}
+function pixels(gl) {
+  const raw = new Uint8Array(W * H * 4), out = new Uint8Array(W * H * 4);
+  gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, raw);
+  for (let y = 0; y < H; y++) out.set(raw.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4);   // row 0 = top
+  return out;
+}
+function draw(gl, fn) {
+  gl.viewport(0, 0, W, H);
+  gl.clearColor(...bg, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+  fn();
+  return pixels(gl);
+}
+const loadPNG = src => new Promise(ok => { const i = new Image(); i.onload = () => {
+  const c = document.createElement('canvas'); c.width = W; c.height = H; const cx = c.getContext('2d'); cx.drawImage(i, 0, 0);
+  ok(cx.getImageData(0, 0, W, H).data); }; i.onerror = () => ok(null); i.src = src + '?' + Date.now(); });
+
+function diff(gold, test) {
+  if (!test) return null;
+  let n = 0, sum = 0, over = 0, max = 0;
+  const b = bg.map(v => Math.round(v * 255));
+  for (let i = 0; i < W * H; i++) {
+    const o = i * 4;
+    if (Math.max(Math.abs(gold[o] - b[0]), Math.abs(gold[o + 1] - b[1]), Math.abs(gold[o + 2] - b[2])) <= 3) continue;
+    n++;
+    let m = 0;
+    for (let k = 0; k < 3; k++) { const d = Math.abs(gold[o + k] - test[o + k]); sum += d; m = Math.max(m, d); }
+    if (m > 8) over++;
+    max = Math.max(max, m);
+  }
+  return { mean: sum / (n * 3), over: over / n * 100, max };
+}
+const toCanvas = px => { const c = document.createElement('canvas'); c.width = W; c.height = H; c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(px), W, H), 0, 0); return c; };
+function heat(gold, test) {
+  const px = new Uint8Array(W * H * 4);
+  for (let i = 0; i < W * H; i++) { let m = 0; for (let k = 0; k < 3; k++) m = Math.max(m, Math.abs(gold[i * 4 + k] - test[i * 4 + k])); px.set([Math.min(255, m * 16), 0, 0, 255], i * 4); }
+  return toCanvas(px);
+}
+
+const G = glCanvas('webgl'), P = glCanvas('webgl2');
+const golden = goldenRenderer(G.gl, a), port = portRenderer(P.gl, a);
+const full = [-1, 1, 1, -1], results = [];
+const fmt = (d, k, lim) => d ? `<span class="${d[k] <= lim ? 'ok' : 'bad'}">${d[k].toFixed(k === 'mean' ? 3 : 3)}${k === 'over' ? ' %' : ''}</span>` : '—';
+for (const t of TILTS) {
+  const gold = draw(G.gl, () => golden(t));
+  const gles0 = draw(P.gl, () => port.wallet(full, t, 0));
+  const gles = draw(P.gl, () => port.wallet(full, t));
+  const metal = await loadPNG(`results/metal_${t[0]}_${t[1]}.png`);
+  const dg = diff(gold, gles0), dm = diff(gles, metal);
+  results.push({ tilt: t, gles: dg, metal: dm });
+  document.getElementById('rows').insertAdjacentHTML('beforeend',
+    `<tr><td>${t.join(', ')}</td><td>${fmt(dg, 'mean', 1)}</td><td>${fmt(dg, 'over', 0.1)}</td><td>${fmt(dm, 'mean', 1)}</td><td>${fmt(dm, 'over', 0.1)}</td><td>${dg.max} / ${dm ? dm.max : '—'}</td></tr>`);
+  if (t[0] === 0.6) {
+    const figs = document.getElementById('figs');
+    const add = (el, cap) => { const f = document.createElement('figure'); f.append(el); f.insertAdjacentHTML('beforeend', `<figcaption>${cap}</figcaption>`); figs.append(f); };
+    add(toCanvas(gold), 'detector shader, tilt 0.6, -0.4');
+    add(toCanvas(gles0), 'GLES port, creases 0');
+    add(toCanvas(gles), 'GLES port, shipped params');
+    if (metal) add(toCanvas(metal), 'Metal port, shipped params');
+    add(heat(gold, gles0), 'GLES (creases 0) vs detector, |Δ| × 16');
+    if (metal) add(heat(gles, metal), 'Metal vs GLES, |Δ| × 16');
+  }
+}
+window.compareResults = results;
+</script>
+</body>
+</html>

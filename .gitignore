@@ -1,0 +1,9 @@
+reference/metal/.build/
+ios/Sample/.build/
+android/sample/.gradle/
+android/sample/build/
+android/sample/app/build/
+android/sample/local.properties
+.DS_Store
+.claude/
+reference/results/scene_*.png

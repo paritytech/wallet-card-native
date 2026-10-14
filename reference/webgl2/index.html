@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wallet port (WebGL2)</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #ececef; font: 13px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; color: #1d1d1f; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  .bar { position: fixed; left: 0; right: 0; bottom: max(18px, env(safe-area-inset-bottom)); display: flex; justify-content: center; gap: 8px; align-items: center; pointer-events: none; }
+  .bar > * { pointer-events: auto; }
+  button { font: inherit; font-weight: 500; border: 0; border-radius: 999px; padding: 8px 16px; background: #1d1d1f; color: #fff; cursor: pointer; }
+  .read { padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.8); backdrop-filter: blur(12px); font-variant-numeric: tabular-nums; }
+  .err { position: fixed; inset: 16px; color: #b00020; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="bar">
+  <button id="motion" hidden>Use motion</button>
+  <span class="read" id="read">pointer</span>
+</div>
+<script type="module" src="./main.js"></script>
+</body>
+</html>

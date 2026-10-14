@@ -1,0 +1,46 @@
+{
+  "image": {
+    "file": "image.png",
+    "width": 1024,
+    "height": 642
+  },
+  "regions": {
+    "file": "regions.png",
+    "width": 520,
+    "height": 326,
+    "source": "auto",
+    "encoding": "id = round(r * 255 / 40) - 1; -1 = outside every region"
+  },
+  "materials": [
+    {
+      "mat": "leather",
+      "metal": 0.16,
+      "rough": 0.57,
+      "relief": 0.45,
+      "sheen": 0.1,
+      "coat": 0.22
+    },
+    {
+      "mat": "thread",
+      "metal": 0,
+      "rough": 0.88,
+      "relief": 0.7,
+      "sheen": 0.5,
+      "coat": 0
+    },
+    {
+      "mat": "brass",
+      "metal": 1,
+      "rough": 0.34,
+      "relief": 0.45,
+      "sheen": 0,
+      "coat": 0
+    }
+  ],
+  "shadow": {
+    "file": "shadow.png",
+    "pad": 0.2,
+    "offsetY": 0.1,
+    "opacity": 0.22
+  }
+}
