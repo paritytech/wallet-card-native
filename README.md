@@ -143,6 +143,8 @@ All of these are data, not colour. Decode them without colour management and upl
 | `layout.maxWidth` | 820 | cap in points / dp |
 | `layout.background` | `#ececef` | the detector's stage colour (the views are transparent; this is for the demos and references) |
 | `render.maxScale`, `supersample` | 2, 1.5 | iOS render density = min(screen scale, 2) × 1.5, as the detector's canvas |
+| `render.maxFps` | 60 | most frames per second the card is drawn at; on 120 Hz screens more only doubles the cost |
+| `render.idle` | 0.002 | light movement (tilt units) below which a frame is not redrawn; filters hand tremor |
 | `relief.creases` | 1 | 0 = the detector's 1-texel relief exactly; 1 = crease-scale relief (§5) |
 | `light.guard` | 1 | 0 = the detector's light path; 1 = the light never lines up with the view, so the whole card can't flood with highlight (§5) |
 | `tilt.rest` | [0.2, −0.4] | where the light sits while the phone is held still (shader tilt units); chosen where the creases catch the light best |
@@ -279,7 +281,7 @@ cd android/sample && ./gradlew assembleDebug    # → app/build/outputs/apk/debu
 | Textures | image 1024 × 642 RGBA8 = 2.5 MB, regions 520 × 326 R8 = 0.17 MB, shadow ≈ 0.15 MB |
 | APK / bundle | ≈ 1.2 MB of assets |
 | Frame | one quad of simple math over the card; the shadow quad is trivial |
-| Idle | nothing is drawn while the light stays within 0.0005 tilt units of the last frame (all three platforms) |
+| Idle | nothing is drawn while the light stays within `render.idle` (0.002 tilt units) of the last frame, and never more than `render.maxFps` (60) frames a second (all three platforms) |
 
 **Measured** on a Galaxy A26 (Mali-G68, mid-range), native Android demo, release build. The phone was charging with the CPU at full clock, so CPU figures are approximate (repeat runs varied by up to ±25 points). GPU is busy × clock ÷ max clock.
 
@@ -290,8 +292,20 @@ cd android/sample && ./gradlew assembleDebug    # → app/build/outputs/apk/debu
 | Drawing every frame, SurfaceView (`onTop = true`) | ~58 % | 11 % |
 | Light still (phone on the table), draw-on-change | 9 % | ≈ idle |
 
+**In the hand** (held as usual; the A26 screen runs at 120 Hz), before and after the 60 fps cap and the 0.002 idle threshold:
+
+| Case | Before: CPU / GPU | After: CPU / GPU |
+|---|---|---|
+| Native, SurfaceView (`onTop = true`) | 59 % / 7 % | 37 % / 2 % |
+| Native, TextureView (default) | 103 % / 9 % | 91 % / 3 % |
+| Docklet Liquid (WebView), Pocket | 133 % / 33 % | 64 % / 12 % |
+
+In the Docklet run the light moved across x 0.03…0.36, y −0.75…−0.23 and 510 of 1452 display frames were drawn (35 %, was 87 %). The TextureView's CPU is mostly the window recomposite, not our drawing, which is why `onTop = true` is worth it wherever nothing overlaps the card.
+
+**WebView gotcha.** Recent Android WebView (Chromium 153) delivers `devicemotion` only after the page has had a user tap. In normal use that is a tap to reach the card; a card on the very first screen stays unlit-still until the first touch. Native hosts don't have this.
+
 - **GPU.** The shader is light: ~0.5 MP of card × ~22 texture reads at 60 fps added about 4 points of GPU at the lowest GPU clock.
-- **CPU.** The cost was presenting 60 frames a second whether or not anything changed, and with a TextureView each presented frame also recomposites the app's window. Draw-on-change removes this when the phone is still; in the hand the light keeps moving a little, so expect something between the last two rows. Not yet measured in the hand.
+- **CPU.** The cost was presenting a frame on every vsync whether or not anything changed, and with a TextureView each presented frame also recomposites the app's window. Draw-on-change removes this when the phone is still; in the hand the 60 fps cap and the idle threshold keep it to the table above.
 - **Startup.** 0.4 s from tap to first frame (release, including Compose). Memory: ~3 MB of card textures plus the surface buffers, which is why the view should be sized to the card.
 
 ## 12. Pitfalls checklist

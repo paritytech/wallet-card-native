@@ -7,7 +7,9 @@
   },
   "render": {
     "maxScale": 2,
-    "supersample": 1.5
+    "supersample": 1.5,
+    "maxFps": 60,
+    "idle": 0.002
   },
   "relief": {
     "creases": 1

@@ -62,8 +62,6 @@
     return this.value;
   };
 
-  // light movement (shader tilt units) below which a frame is not redrawn: about 0.02 degrees of phone turn
-  var IDLE = 0.0005;
 
   var cache = {};
   function load(base) {
@@ -208,12 +206,15 @@
       var pw = Math.round(r.width * scale), ph = Math.round(r.height * scale);
       if (c.width !== pw || c.height !== ph) { c.width = pw; c.height = ph; }
       if (self._pointer || !motion.active) self._tilt.point(self._pointer);
-      var tilt = self._tilt.step(dt), d = self._drawn;
-      // skip frames that would look the same: the canvas keeps showing the last one
-      if (d && d[0] === pw && d[1] === ph && Math.abs(tilt[0] - d[2]) <= IDLE && Math.abs(tilt[1] - d[3]) <= IDLE) return;
+      var tilt = self._tilt.step(dt), d = self._drawn, idle = p.idle;
+      // skip frames that would look the same (params.render.idle); the canvas keeps showing the last one
+      var resized = !d || d[0] !== pw || d[1] !== ph;
+      if (!resized && Math.abs(tilt[0] - d[2]) <= idle && Math.abs(tilt[1] - d[3]) <= idle) return;
+      // at most params.render.maxFps (60): on a 120 Hz screen every vsync doubles the cost for no visible gain
+      if (!resized && t - d[4] < 900 / p.maxFps) return;
       self._gl.viewport(0, 0, pw, ph);
       self._draw(c.clientWidth || r.width, c.clientHeight || r.height, self.hasAttribute('shadow'), tilt);
-      self._drawn = [pw, ph, tilt[0], tilt[1]];
+      self._drawn = [pw, ph, tilt[0], tilt[1], t];
     };
     this._raf = requestAnimationFrame(frame);
   };

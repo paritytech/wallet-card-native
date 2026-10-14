@@ -40,9 +40,6 @@ import androidx.compose.ui.platform.LocalDensity
 import java.util.concurrent.CountDownLatch
 import kotlin.math.abs
 
-/** Light movement (shader tilt units) below which a frame is not redrawn: ≈ 0.02° of phone turn. */
-private const val IDLE = 0.0005f
-
 /** Width ÷ height of the card with its shadow, for Modifier.aspectRatio. */
 @Composable
 fun rememberWalletAspect(assetsFolder: String = "wallet"): Float {
@@ -65,7 +62,7 @@ fun WalletSurface(modifier: Modifier = Modifier, assetsFolder: String = "wallet"
     }
     val init: AndroidExternalSurfaceScope.() -> Unit = {
         onSurface { surface, width, height ->
-            val loop = RenderLoop(surface, WalletRenderer(assets), tilt.filter, density)
+            val loop = RenderLoop(surface, WalletRenderer(assets), tilt.filter, density, assets.params)
             loop.start(width, height)
             surface.onChanged { w, h -> loop.resize(w, h) }
             surface.onDestroyed { loop.stop() }
@@ -81,7 +78,12 @@ private class RenderLoop(
     private val renderer: WalletRenderer,
     private val tilt: TiltFilter,
     private val density: Float,
+    params: WalletParams,
 ) : Choreographer.FrameCallback {
+    private val idle = params.idle
+    // a little under 1/maxFps, so a 60 Hz cap on a 120 Hz display draws every second vsync, not every third
+    private val minInterval = (1e9 / params.maxFps * 0.9).toLong()
+    private var drawnNanos = 0L
     private val thread = HandlerThread("wallet-gl").apply { start() }
     private val handler = Handler(thread.looper)
     private var display: EGLDisplay = EGL14.EGL_NO_DISPLAY
@@ -131,13 +133,16 @@ private class RenderLoop(
         val dt = if (lastNanos == 0L) 0.0 else ((frameTimeNanos - lastNanos) / 1e9).coerceIn(0.0, 0.1)
         lastNanos = frameTimeNanos
         val t = tilt.step(dt)
-        // Only draw when the light moved visibly (or the size changed). A phone held still, or lying on a
-        // table, then costs nothing but this check; with a TextureView every presented frame also makes
-        // the app's UI and RenderThread recomposite the window.
-        if (width != drawnW || height != drawnH || abs(t[0] - drawnX) > IDLE || abs(t[1] - drawnY) > IDLE) {
+        // Only draw when the light moved visibly (params.render.idle) or the size changed. A phone held still,
+        // or lying on a table, then costs nothing but this check; with a TextureView every presented frame
+        // also makes the app's UI and RenderThread recomposite the window.
+        val resized = width != drawnW || height != drawnH
+        val moved = abs(t[0] - drawnX) > idle || abs(t[1] - drawnY) > idle
+        // at most maxFps (60): on a 120 Hz screen drawing every vsync doubles the cost for no visible gain
+        if (resized || (moved && frameTimeNanos - drawnNanos >= minInterval)) {
             renderer.draw(width, height, density, t[0], t[1])
             EGL14.eglSwapBuffers(display, eglSurface)
-            drawnW = width; drawnH = height; drawnX = t[0]; drawnY = t[1]
+            drawnW = width; drawnH = height; drawnX = t[0]; drawnY = t[1]; drawnNanos = frameTimeNanos
         }
         Choreographer.getInstance().postFrameCallback(this)
     }

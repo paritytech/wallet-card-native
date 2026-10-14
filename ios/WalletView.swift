@@ -51,8 +51,7 @@ public struct WalletView: UIViewRepresentable {
         // what the last presented frame showed; frames that would look the same are skipped
         private var drawnTilt = SIMD2<Float>(.nan, .nan)
         private var drawnSize = CGSize.zero
-        /// Light movement (shader tilt units) below which a frame is not redrawn: ≈ 0.02° of phone turn.
-        static let idle: Float = 0.0005
+        private var idle: Float = 0.002                 // params.render.idle
 
         func setUp(_ view: MTKView, folder: String) {
             guard let device = view.device, let assets = Bundle.main.url(forResource: folder, withExtension: nil) else {
@@ -71,6 +70,9 @@ public struct WalletView: UIViewRepresentable {
                 queue = device.makeCommandQueue()
                 // render density as on the web: min(screen scale, 2) × 1.5 (= 3 on every current iPhone)
                 view.contentScaleFactor = r.renderScale(screenScale: UIScreen.main.scale)
+                // at most maxFps (60): on a 120 Hz ProMotion screen more frames only double the cost
+                view.preferredFramesPerSecond = r.params.render.maxFps
+                idle = r.params.render.idle
                 tilt = TiltSource(r.params.tilt)
                 tilt?.start()
             } catch {
@@ -95,7 +97,7 @@ public struct WalletView: UIViewRepresentable {
             let t = tilt?.update(dt: dt) ?? .zero
             // Skip the frame (no drawable, no GPU work) when it would look the same as the last one.
             let size = view.drawableSize
-            if size == drawnSize, abs(t.x - drawnTilt.x) <= Self.idle, abs(t.y - drawnTilt.y) <= Self.idle { return }
+            if size == drawnSize, abs(t.x - drawnTilt.x) <= idle, abs(t.y - drawnTilt.y) <= idle { return }
             guard let pass = view.currentRenderPassDescriptor, let drawable = view.currentDrawable,
                   let cmd = queue.makeCommandBuffer(), let enc = cmd.makeRenderCommandEncoder(descriptor: pass) else { return }
             renderer.encode(enc, size: view.bounds.size, tilt: t)

@@ -35,6 +35,11 @@ class CardDescription(json: JSONObject) {
 class WalletParams(json: JSONObject) {
     private val layout = json.getJSONObject("layout")
     private val tilt = json.getJSONObject("tilt")
+    private val render = json.getJSONObject("render")
+    /** Most frames per second the card is drawn at, whatever the display rate. */
+    val maxFps = render.getDouble("maxFps")
+    /** Light movement (shader tilt units) below which a frame is not redrawn. */
+    val idle = render.f("idle")
     val widthFraction = layout.f("widthFraction")
     val maxWidth = layout.f("maxWidth")
     val creases = json.getJSONObject("relief").f("creases")

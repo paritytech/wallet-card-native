@@ -21,9 +21,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             // the surface sized to the card and its shadow, not the whole screen; nothing is drawn over it,
-            // so it can use the cheaper SurfaceView (onTop = true)
+            // so it can use the cheaper SurfaceView (onTop = true). For measuring the default TextureView:
+            // adb shell am start -n io.parity.walletdemo/.MainActivity --ez textureView true
+            val onTop = !intent.getBooleanExtra("textureView", false)
             Box(Modifier.fillMaxSize().background(Color(0xFFECECEF)), contentAlignment = Alignment.Center) {
-                WalletSurface(Modifier.fillMaxWidth().padding(horizontal = 24.dp).aspectRatio(rememberWalletAspect()), onTop = true)
+                WalletSurface(Modifier.fillMaxWidth().padding(horizontal = 24.dp).aspectRatio(rememberWalletAspect()), onTop = onTop)
             }
         }
     }
