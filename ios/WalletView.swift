@@ -4,6 +4,11 @@
 //       .background(Color(red: 0xEC / 255, green: 0xEC / 255, blue: 0xEF / 255))
 //
 // The view is transparent outside the wallet and its shadow; put any background behind it.
+// Size it to the card rather than full screen (the drawable is width × height × scale² × 4 bytes, ×3):
+//
+//   WalletView().aspectRatio(WalletView.fittedAspect(), contentMode: .fit)
+//
+// It draws only when the light moved visibly or the size changed, so a phone held still costs almost nothing.
 // Without a gyroscope (the Simulator) a drag moves the light instead, like the pointer on the web.
 import SwiftUI
 import MetalKit
@@ -12,6 +17,11 @@ import QuartzCore
 public struct WalletView: UIViewRepresentable {
     public var assetsFolder = "WalletAssets"
     public init(assetsFolder: String = "WalletAssets") { self.assetsFolder = assetsFolder }
+
+    /// Width ÷ height of the card with its shadow, for `.aspectRatio(_, contentMode: .fit)`.
+    public static func fittedAspect(assetsFolder: String = "WalletAssets") -> CGFloat {
+        Bundle.main.url(forResource: assetsFolder, withExtension: nil).flatMap(WalletRenderer.fittedAspect(assets:)) ?? 1.6
+    }
 
     public func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -38,6 +48,11 @@ public struct WalletView: UIViewRepresentable {
         var tilt: TiltSource?
         private var queue: MTLCommandQueue?
         private var lastFrame: CFTimeInterval = 0
+        // what the last presented frame showed; frames that would look the same are skipped
+        private var drawnTilt = SIMD2<Float>(.nan, .nan)
+        private var drawnSize = CGSize.zero
+        /// Light movement (shader tilt units) below which a frame is not redrawn: ≈ 0.02° of phone turn.
+        static let idle: Float = 0.0005
 
         func setUp(_ view: MTKView, folder: String) {
             guard let device = view.device, let assets = Bundle.main.url(forResource: folder, withExtension: nil) else {
@@ -73,16 +88,22 @@ public struct WalletView: UIViewRepresentable {
         public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
 
         public func draw(in view: MTKView) {
-            guard let renderer, let queue, let pass = view.currentRenderPassDescriptor, let drawable = view.currentDrawable,
-                  let cmd = queue.makeCommandBuffer(), let enc = cmd.makeRenderCommandEncoder(descriptor: pass) else { return }
+            guard let renderer, let queue else { return }
             let now = CACurrentMediaTime()
             let dt = lastFrame == 0 ? 0 : min(0.1, now - lastFrame)
             lastFrame = now
             let t = tilt?.update(dt: dt) ?? .zero
+            // Skip the frame (no drawable, no GPU work) when it would look the same as the last one.
+            let size = view.drawableSize
+            if size == drawnSize, abs(t.x - drawnTilt.x) <= Self.idle, abs(t.y - drawnTilt.y) <= Self.idle { return }
+            guard let pass = view.currentRenderPassDescriptor, let drawable = view.currentDrawable,
+                  let cmd = queue.makeCommandBuffer(), let enc = cmd.makeRenderCommandEncoder(descriptor: pass) else { return }
             renderer.encode(enc, size: view.bounds.size, tilt: t)
             enc.endEncoding()
             cmd.present(drawable)
             cmd.commit()
+            drawnTilt = t
+            drawnSize = size
         }
     }
 }

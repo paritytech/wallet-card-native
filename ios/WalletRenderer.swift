@@ -76,6 +76,21 @@ public final class WalletRenderer {
         shadowPipeline = try pipeline("shadow_fragment")
     }
 
+    /// Width ÷ height of a view that holds exactly the card and its shadow. Size the view with this
+    /// (instead of full screen) and the card fills it; a larger view only costs drawable memory.
+    public var fittedAspect: CGFloat {
+        let s = description.shadow, aspect = CGFloat(description.image.width) / CGFloat(description.image.height)
+        return (1 + 2 * CGFloat(s.pad)) / (1 / aspect + 2 * CGFloat(s.pad) + CGFloat(s.offsetY))
+    }
+
+    /// `fittedAspect` without a renderer, read from an assets folder's card.json.
+    public static func fittedAspect(assets: URL) -> CGFloat? {
+        guard let data = try? Data(contentsOf: assets.appendingPathComponent("card.json")),
+              let d = try? JSONDecoder().decode(WalletDescription.self, from: data) else { return nil }
+        let s = d.shadow, aspect = CGFloat(d.image.width) / CGFloat(d.image.height)
+        return (1 + 2 * CGFloat(s.pad)) / (1 / aspect + 2 * CGFloat(s.pad) + CGFloat(s.offsetY))
+    }
+
     /// Where the wallet sits in a view of `size` points: centred, `widthFraction` of the width,
     /// at most `maxWidth`, and small enough that it and its shadow fit the height.
     public func walletRect(in size: CGSize) -> CGRect {

@@ -28,6 +28,14 @@ android {
     }
     sourceSets["main"].java.srcDir(packageRoot.resolve("android/src"))
     sourceSets["main"].assets.srcDir(walletAssets)
+    buildTypes {
+        // release build for measuring: optimised, signed with the debug key so it installs directly
+        release {
+            isMinifyEnabled = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
     buildFeatures { compose = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

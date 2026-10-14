@@ -61,6 +61,12 @@ class WalletAssets(private val assets: AssetManager, private val folder: String 
     }
     val card by lazy { CardDescription(JSONObject(text("card.json"))) }
     val params by lazy { WalletParams(JSONObject(text("params.json"))) }
+
+    /** Width ÷ height of a view that holds exactly the card and its shadow; see WalletSurface. */
+    val fittedAspect: Float by lazy {
+        val c = card
+        (1 + 2 * c.shadowPad) / (c.imageHeight.toFloat() / c.imageWidth + 2 * c.shadowPad + c.shadowOffsetY)
+    }
 }
 
 class WalletRenderer(private val src: WalletAssets) {
@@ -71,6 +77,8 @@ class WalletRenderer(private val src: WalletAssets) {
     private var vao = 0
     private val textures = IntArray(3)       // image, regions, shadow
     private val regionArrays = Array(5) { FloatArray(6) }   // metal, rough, relief, sheen, coat; zero-filled to 6
+    private val loc = HashMap<String, Int>()                // uniform locations, looked up once per program
+    private fun u(program: Int, name: String) = loc.getOrPut("$program/$name") { glGetUniformLocation(program, name) }
 
     fun init() {
         val vert = src.text("wallet.vert")
@@ -111,7 +119,7 @@ class WalletRenderer(private val src: WalletAssets) {
         glUseProgram(shadowProgram)
         uniformRect(shadowProgram, shadow, w, h)
         texUnit(shadowProgram, "uShadow", 2)
-        glUniform1f(glGetUniformLocation(shadowProgram, "uOpacity"), card.shadowOpacity)
+        glUniform1f(u(shadowProgram, "uOpacity"), card.shadowOpacity)
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4)
 
         val p = walletProgram
@@ -119,12 +127,12 @@ class WalletRenderer(private val src: WalletAssets) {
         uniformRect(p, r, w, h)
         texUnit(p, "uImg", 0)
         texUnit(p, "uReg", 1)
-        glUniform2f(glGetUniformLocation(p, "uTex"), card.imageWidth.toFloat(), card.imageHeight.toFloat())
-        glUniform2f(glGetUniformLocation(p, "uTilt"), tiltX, tiltY)
-        glUniform1f(glGetUniformLocation(p, "uCrease"), params.creases)
-        glUniform1f(glGetUniformLocation(p, "uGuard"), params.guard)
+        glUniform2f(u(p, "uTex"), card.imageWidth.toFloat(), card.imageHeight.toFloat())
+        glUniform2f(u(p, "uTilt"), tiltX, tiltY)
+        glUniform1f(u(p, "uCrease"), params.creases)
+        glUniform1f(u(p, "uGuard"), params.guard)
         listOf("uMetal", "uRough", "uRelief", "uSheen", "uCoat").forEachIndexed { i, n ->
-            glUniform1fv(glGetUniformLocation(p, n), 6, regionArrays[i], 0)
+            glUniform1fv(u(p, n), 6, regionArrays[i], 0)
         }
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4)
     }
@@ -139,6 +147,7 @@ class WalletRenderer(private val src: WalletAssets) {
     }
 
     fun release() {
+        loc.clear()
         glDeleteTextures(3, textures, 0)
         glDeleteVertexArrays(1, intArrayOf(vao), 0)
         glDeleteProgram(walletProgram)
@@ -147,14 +156,14 @@ class WalletRenderer(private val src: WalletAssets) {
 
     private fun uniformRect(program: Int, r: FloatArray, w: Float, h: Float) {
         // (left, top, right, bottom) in clip space
-        glUniform4f(glGetUniformLocation(program, "uRect"),
+        glUniform4f(u(program, "uRect"),
             r[0] / w * 2 - 1, 1 - r[1] / h * 2, (r[0] + r[2]) / w * 2 - 1, 1 - (r[1] + r[3]) / h * 2)
     }
 
     private fun texUnit(program: Int, name: String, unit: Int) {
         glActiveTexture(GL_TEXTURE0 + unit)
         glBindTexture(GL_TEXTURE_2D, textures[unit])
-        glUniform1i(glGetUniformLocation(program, name), unit)
+        glUniform1i(u(program, name), unit)
     }
 
     private fun bindTexture(unit: Int, filter: Int) {

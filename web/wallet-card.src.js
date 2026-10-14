@@ -9,7 +9,8 @@
  * Attributes: src (assets folder, default ./assets/wallet/), shadow (present = draw the drop shadow and
  * leave room for it, as the native views do; absent = the card fills the element).
  * Light: DeviceMotionEvent.rotationRate on phones (Android WebView needs no permission; iOS Safari asks on
- * the first tap on the card), the pointer over the element on desktop. Renders only while on screen.
+ * the first tap on the card), the pointer over the element on desktop. Renders only while on screen, and
+ * only frames where the light moved visibly.
  */
 (function () {
   if (window.customElements && customElements.get('wallet-card')) return;
@@ -60,6 +61,9 @@
     this.value[1] += (this.target[1] - this.value[1]) * k;
     return this.value;
   };
+
+  // light movement (shader tilt units) below which a frame is not redrawn: about 0.02 degrees of phone turn
+  var IDLE = 0.0005;
 
   var cache = {};
   function load(base) {
@@ -164,7 +168,7 @@
     this.addEventListener('pointerleave', this._onLeave);
     this.addEventListener('pointerdown', this._onTap);
     c.addEventListener('webglcontextlost', function (e) { e.preventDefault(); self._draw = null; });
-    c.addEventListener('webglcontextrestored', function () { self._init(); });
+    c.addEventListener('webglcontextrestored', function () { self._drawn = null; self._init(); });
     this._visible = true;
     if ('IntersectionObserver' in window) {
       this._io = new IntersectionObserver(function (es) { self._visible = es[es.length - 1].isIntersecting; if (self._visible) self._start(); });
@@ -204,9 +208,12 @@
       var pw = Math.round(r.width * scale), ph = Math.round(r.height * scale);
       if (c.width !== pw || c.height !== ph) { c.width = pw; c.height = ph; }
       if (self._pointer || !motion.active) self._tilt.point(self._pointer);
-      var tilt = self._tilt.step(dt);
+      var tilt = self._tilt.step(dt), d = self._drawn;
+      // skip frames that would look the same: the canvas keeps showing the last one
+      if (d && d[0] === pw && d[1] === ph && Math.abs(tilt[0] - d[2]) <= IDLE && Math.abs(tilt[1] - d[3]) <= IDLE) return;
       self._gl.viewport(0, 0, pw, ph);
       self._draw(c.clientWidth || r.width, c.clientHeight || r.height, self.hasAttribute('shadow'), tilt);
+      self._drawn = [pw, ph, tilt[0], tilt[1]];
     };
     this._raf = requestAnimationFrame(frame);
   };

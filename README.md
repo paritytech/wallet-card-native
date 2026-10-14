@@ -217,23 +217,27 @@ Add these to the app target:
 Then:
 ```swift
 WalletView()                                    // or WalletView(assetsFolder: "MyFolder")
-    .background(Color(red: 0xEC / 255, green: 0xEC / 255, blue: 0xEF / 255))
+    .aspectRatio(WalletView.fittedAspect(), contentMode: .fit)   // the view = the card + its shadow
 ```
 
 - **Requirements.** Metal and Core Motion only; the APIs exist since iOS 14. Tested on the iOS 17+ Simulator (the sample targets 17.0). Device motion needs no permission prompt or usage string.
 - **Shader fallback.** If `wallet.metal` is not in the default library, the view compiles `WalletAssets/wallet.metal` at launch. `build-sim.sh` uses this when the Metal Toolchain isn't installed (`xcodebuild -downloadComponent MetalToolchain`).
-- **Frame loop.** The view renders at 60 fps via `MTKView` and polls Core Motion once per frame (no update queue). Motion stops when the view is dismantled.
+- **Frame loop.** `MTKView` ticks at 60 fps and polls Core Motion once per frame (no update queue), but a frame is drawn and presented only when the light moved visibly (> 0.0005 tilt units, ≈ 0.02° of turn) or the size changed. Motion stops when the view is dismantled.
+- **Size.** Give the view the card's own proportions (`fittedAspect`, the card with its shadow) rather than the whole screen; a full-screen drawable at 3× is ~12 MB per buffer, triple-buffered.
 
 ## 9. Android integration
 
 Copy `android/src/io/parity/wallet/*.kt` into the app, or add the folder as a source dir as the sample does. Then package `assets/*` plus `shaders/*.vert, *.frag` into the APK's `assets/wallet/`; the sample's `copyWalletAssets` Gradle task does this.
 
 ```kotlin
-WalletSurface(Modifier.fillMaxSize().background(Color(0xFFECECEF)))   // or assetsFolder = "…"
+WalletSurface(Modifier.fillMaxWidth().aspectRatio(rememberWalletAspect()))   // the view = the card + its shadow
+WalletSurface(modifier, onTop = true)    // SurfaceView: cheaper, but drawn above ALL app UI
 ```
 
 - **Requirements.** minSdk 26, OpenGL ES 3.0 (`<uses-feature android:glEsVersion="0x00030000"/>`), Compose foundation 1.7+.
-- **Threading.** EGL lives on its own render thread, paced by `Choreographer`. Sensors register while the composable is on screen. GL is torn down before the surface is released.
+- **Threading.** EGL lives on its own render thread, paced by `Choreographer`. A frame is drawn and swapped only when the light moved visibly or the size changed. Sensors register while the composable is on screen. GL is torn down before the surface is released.
+- **TextureView or SurfaceView.** The default (`AndroidEmbeddedExternalSurface`, TextureView) composites like a normal view, so text and UI can sit on top of the card, but every presented frame also makes the app's UI thread and RenderThread recomposite the window. `onTop = true` (`AndroidExternalSurface`, SurfaceView) is composited by the system directly and costs about half the CPU while the light moves, but it is drawn above all of the app's UI: use it only where nothing overlaps the card.
+- **Size.** Size the view to the card (`rememberWalletAspect()`); a full-screen surface on a 1080 × 2340 phone is ~10 MB per buffer.
 - **Render density.** Android renders at the screen's native density, not with the iOS / web × 1.5 supersample. On ≥ 2.6× screens the difference is negligible.
 
 The sample builds with Gradle 8.14.3, AGP 8.13, Kotlin 2.2.10 and Compose BOM 2026.05.00:
@@ -274,9 +278,21 @@ cd android/sample && ./gradlew assembleDebug    # → app/build/outputs/apk/debu
 | Per pixel of card | 1 + 4 + 4 texture reads (colour, luminance gradient, alpha gradient) + 12 for creases, + 1 region read |
 | Textures | image 1024 × 642 RGBA8 = 2.5 MB, regions 520 × 326 R8 = 0.17 MB, shadow ≈ 0.15 MB |
 | APK / bundle | ≈ 1.2 MB of assets |
-| Frame | one full-screen quad of simple math; the shadow quad is trivial |
+| Frame | one quad of simple math over the card; the shadow quad is trivial |
+| Idle | nothing is drawn while the light stays within 0.0005 tilt units of the last frame (all three platforms) |
 
-Rendering runs continuously while the view is visible, because the gyroscope is always slightly moving. To save power when the light has settled, skip frames while `|target − value|` is below ~0.001.
+**Measured** on a Galaxy A26 (Mali-G68, mid-range), native Android demo, release build. The phone was charging with the CPU at full clock, so CPU figures are approximate (repeat runs varied by up to ±25 points). GPU is busy × clock ÷ max clock.
+
+| Case | CPU (% of one core) | GPU (% of max) |
+|---|---|---|
+| Home screen, for reference | 2 % | 11 % (Samsung's idle floor) |
+| Drawing every frame, full-screen TextureView (before) | 88–112 % | 15 % |
+| Drawing every frame, SurfaceView (`onTop = true`) | ~58 % | 11 % |
+| Light still (phone on the table), draw-on-change | 9 % | ≈ idle |
+
+- **GPU.** The shader is light: ~0.5 MP of card × ~22 texture reads at 60 fps added about 4 points of GPU at the lowest GPU clock.
+- **CPU.** The cost was presenting 60 frames a second whether or not anything changed, and with a TextureView each presented frame also recomposites the app's window. Draw-on-change removes this when the phone is still; in the hand the light keeps moving a little, so expect something between the last two rows. Not yet measured in the hand.
+- **Startup.** 0.4 s from tap to first frame (release, including Compose). Memory: ~3 MB of card textures plus the surface buffers, which is why the view should be sized to the card.
 
 ## 12. Pitfalls checklist
 

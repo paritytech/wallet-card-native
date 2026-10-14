@@ -1,6 +1,13 @@
-// Compose view: the card, lit by the phone's motion. Drop-in:
+// Compose view: the card, lit by the phone's motion. Drop-in, sized to the card and its shadow:
 //
-//   WalletSurface(Modifier.fillMaxSize().background(Color(0xFFECECEF)))
+//   WalletSurface(Modifier.fillMaxWidth().aspectRatio(rememberWalletAspect()))
+//
+// A larger view works too, but its buffers cost width × height × 4 bytes each.
+// It draws only when the light moved visibly or the size changed, so a phone held still costs almost nothing.
+//
+// onTop = true uses a SurfaceView instead of a TextureView: about half the CPU while the light moves,
+// because the app's UI thread and RenderThread no longer recomposite the window on every frame. But the
+// card is then drawn above ALL of the app's UI, so use it only where nothing is drawn over the card.
 //
 // Assets: copy this package's assets/ folder and the three shaders/*.vert|frag files into the app's
 // assets under "wallet/" (the sample's Gradle task does it). The surface is transparent outside the
@@ -19,6 +26,9 @@ import android.os.HandlerThread
 import android.view.Choreographer
 import android.view.Surface
 import androidx.compose.foundation.AndroidEmbeddedExternalSurface
+import androidx.compose.foundation.AndroidExternalSurface
+import androidx.compose.foundation.AndroidExternalSurfaceScope
+import androidx.compose.foundation.AndroidExternalSurfaceZOrder
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -28,9 +38,20 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import java.util.concurrent.CountDownLatch
+import kotlin.math.abs
+
+/** Light movement (shader tilt units) below which a frame is not redrawn: ≈ 0.02° of phone turn. */
+private const val IDLE = 0.0005f
+
+/** Width ÷ height of the card with its shadow, for Modifier.aspectRatio. */
+@Composable
+fun rememberWalletAspect(assetsFolder: String = "wallet"): Float {
+    val context = LocalContext.current
+    return remember(assetsFolder) { WalletAssets(context.assets, assetsFolder).fittedAspect }
+}
 
 @Composable
-fun WalletSurface(modifier: Modifier = Modifier, assetsFolder: String = "wallet") {
+fun WalletSurface(modifier: Modifier = Modifier, assetsFolder: String = "wallet", onTop: Boolean = false) {
     val context = LocalContext.current
     val density = LocalDensity.current.density
     val assets = remember(assetsFolder) { WalletAssets(context.assets, assetsFolder) }
@@ -42,7 +63,7 @@ fun WalletSurface(modifier: Modifier = Modifier, assetsFolder: String = "wallet"
             tilt.filter.point(doubleArrayOf((change.position.x / size.width - 0.5) * 2.0, (change.position.y / size.height - 0.5) * -2.0))
         }
     }
-    AndroidEmbeddedExternalSurface(modifier.then(drag), isOpaque = false) {
+    val init: AndroidExternalSurfaceScope.() -> Unit = {
         onSurface { surface, width, height ->
             val loop = RenderLoop(surface, WalletRenderer(assets), tilt.filter, density)
             loop.start(width, height)
@@ -50,6 +71,8 @@ fun WalletSurface(modifier: Modifier = Modifier, assetsFolder: String = "wallet"
             surface.onDestroyed { loop.stop() }
         }
     }
+    if (onTop) AndroidExternalSurface(modifier.then(drag), isOpaque = false, zOrder = AndroidExternalSurfaceZOrder.OnTop, onInit = init)
+    else AndroidEmbeddedExternalSurface(modifier.then(drag), isOpaque = false, onInit = init)
 }
 
 /** EGL + a dedicated render thread, driven by Choreographer at the display's frame rate. */
@@ -68,6 +91,11 @@ private class RenderLoop(
     private var height = 0
     private var lastNanos = 0L
     private var running = false
+    // what the last presented frame showed; frames that would look the same are not drawn
+    private var drawnW = -1
+    private var drawnH = -1
+    private var drawnX = Float.NaN
+    private var drawnY = Float.NaN
 
     fun start(w: Int, h: Int) = handler.post {
         width = w; height = h
@@ -103,8 +131,14 @@ private class RenderLoop(
         val dt = if (lastNanos == 0L) 0.0 else ((frameTimeNanos - lastNanos) / 1e9).coerceIn(0.0, 0.1)
         lastNanos = frameTimeNanos
         val t = tilt.step(dt)
-        renderer.draw(width, height, density, t[0], t[1])
-        EGL14.eglSwapBuffers(display, eglSurface)
+        // Only draw when the light moved visibly (or the size changed). A phone held still, or lying on a
+        // table, then costs nothing but this check; with a TextureView every presented frame also makes
+        // the app's UI and RenderThread recomposite the window.
+        if (width != drawnW || height != drawnH || abs(t[0] - drawnX) > IDLE || abs(t[1] - drawnY) > IDLE) {
+            renderer.draw(width, height, density, t[0], t[1])
+            EGL14.eglSwapBuffers(display, eglSurface)
+            drawnW = width; drawnH = height; drawnX = t[0]; drawnY = t[1]
+        }
         Choreographer.getInstance().postFrameCallback(this)
     }
 
