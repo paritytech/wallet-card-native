@@ -8,9 +8,10 @@ export async function loadAssets() {
   const text = p => fetch(url(p)).then(r => r.text());
   const image = p => new Promise((ok, fail) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => fail(new Error(p)); i.src = url(p); });
   const desc = await json('assets/card.json');
-  const [params, img, reg, shadow, vert, frag, shadowFrag] = await Promise.all([
+  const [params, img, reg, shadow, vert, frag, shadowFrag, height] = await Promise.all([
     json('assets/params.json'), image('assets/' + desc.image.file), image('assets/' + desc.regions.file),
     image('assets/' + desc.shadow.file), text('shaders/wallet.vert'), text('shaders/wallet.frag'), text('shaders/shadow.frag'),
+    desc.height ? image('assets/' + desc.height.file) : null,
   ]);
   // regions.png as raw bytes: the detector kept this map in memory, never as an image
   const c = document.createElement('canvas');
@@ -19,7 +20,7 @@ export async function loadAssets() {
   cx.drawImage(reg, 0, 0);
   const rgba = cx.getImageData(0, 0, reg.width, reg.height).data, regBytes = new Uint8Array(reg.width * reg.height);
   for (let i = 0; i < regBytes.length; i++) regBytes[i] = rgba[i * 4];
-  return { desc, params, img, regBytes, shadow, src: { vert, frag, shadowFrag } };
+  return { desc, params, img, regBytes, shadow, height, src: { vert, frag, shadowFrag } };
 }
 
 // Per-region uniform arrays, zero-filled to 6 exactly as the detector's arr() did.
@@ -128,7 +129,7 @@ export function goldenRenderer(gl, a) {
 // ---- the port (WebGL 2 = OpenGL ES 3.0, the same calls Android makes through GLES30) ----
 export function portRenderer(gl, a) {
   const wallet = program(gl, a.src.vert, a.src.frag), shadow = program(gl, a.src.vert, a.src.shadowFrag);
-  const UW = uniforms(gl, wallet, ['uRect', 'uImg', 'uReg', 'uTex', 'uTilt', 'uCrease', 'uGuard', 'uMetal', 'uRough', 'uRelief', 'uSheen', 'uCoat']);
+  const UW = uniforms(gl, wallet, ['uRect', 'uImg', 'uReg', 'uTex', 'uTilt', 'uCrease', 'uGuard', 'uHeight', 'uHeightScale', 'uMetal', 'uRough', 'uRelief', 'uSheen', 'uCoat']);
   const US = uniforms(gl, shadow, ['uRect', 'uShadow', 'uOpacity']);
   gl.bindVertexArray(gl.createVertexArray());            // no attributes: the quad comes from gl_VertexID
   const img = texture(gl, 0, gl.LINEAR);
@@ -139,6 +140,9 @@ export function portRenderer(gl, a) {
   gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
   const sh = texture(gl, 2, gl.LINEAR);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, gl.RED, gl.UNSIGNED_BYTE, a.shadow);
+  texture(gl, 3, gl.LINEAR);
+  if (a.height) gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, gl.RED, gl.UNSIGNED_BYTE, a.height);
+  else gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, 1, 1, 0, gl.RED, gl.UNSIGNED_BYTE, new Uint8Array(1));
   const R = regionArrays(a.desc.materials);
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);   // premultiplied over
   return {
@@ -148,11 +152,12 @@ export function portRenderer(gl, a) {
       gl.uniform4f(US.uRect, ...rect); gl.uniform1i(US.uShadow, 2); gl.uniform1f(US.uOpacity, a.desc.shadow.opacity);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     },
-    // crease, guard: params.json relief.creases, light.guard; pass 0, 0 to reproduce the detector exactly
-    wallet(rect, tilt, crease = a.params.relief.creases, guard = a.params.light.guard) {
+    // crease, guard, height: params.json relief.creases, light.guard, card.json height.scale;
+    // pass 0, 0, 0 to reproduce the detector exactly
+    wallet(rect, tilt, crease = a.params.relief.creases, guard = a.params.light.guard, height = a.desc.height ? a.desc.height.scale : 0) {
       gl.useProgram(wallet);
       gl.uniform4f(UW.uRect, ...rect); gl.uniform1i(UW.uImg, 0); gl.uniform1i(UW.uReg, 1);
-      gl.uniform2f(UW.uTex, a.desc.image.width, a.desc.image.height); gl.uniform2f(UW.uTilt, tilt[0], tilt[1]); gl.uniform1f(UW.uCrease, crease); gl.uniform1f(UW.uGuard, guard);
+      gl.uniform2f(UW.uTex, a.desc.image.width, a.desc.image.height); gl.uniform2f(UW.uTilt, tilt[0], tilt[1]); gl.uniform1f(UW.uCrease, crease); gl.uniform1f(UW.uGuard, guard); gl.uniform1i(UW.uHeight, 3); gl.uniform1f(UW.uHeightScale, height);
       for (const k in R) gl.uniform1fv(UW[k], R[k]);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     },

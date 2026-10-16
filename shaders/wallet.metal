@@ -18,7 +18,7 @@ vertex QuadOut quad_vertex(uint vid [[vertex_id]], constant float4 &rect [[buffe
   return o;
 }
 
-// Matches WalletRenderer.swift: 36 floats, 144 bytes.
+// Matches WalletRenderer.swift: 37 floats, 148 bytes.
 struct Region { float metal, rough, relief, sheen, coat; };
 struct WalletUniforms {
   float2 tex;                      // image.png size in pixels
@@ -26,6 +26,7 @@ struct WalletUniforms {
   Region regions[6];
   float crease;                    // params.json relief.creases
   float guard;                     // params.json light.guard
+  float heightScale;               // card.json height.scale; 0 = none
 };
 
 constexpr sampler linearClamp(filter::linear, address::clamp_to_edge);
@@ -46,6 +47,7 @@ static float3 envC(float3 d, float r) {
 fragment float4 wallet_fragment(QuadOut in [[stage_in]],
                                 texture2d<float> img [[texture(0)]],     // premultiplied RGBA
                                 texture2d<float> reg [[texture(1)]],     // R8 region ids × 40
+                                texture2d<float> hgt [[texture(2)]],     // R8 pressed-in relief (height.png)
                                 constant WalletUniforms &u [[buffer(0)]]) {
   float2 uv = in.uv;
   float4 c = img.sample(linearClamp, uv);
@@ -70,7 +72,9 @@ fragment float4 wallet_fragment(QuadOut in [[stage_in]],
   float2 e3 = e * 4.;
   float ax = alp(img, uv + float2(e3.x, 0.)) - alp(img, uv - float2(e3.x, 0.));
   float ay = alp(img, uv + float2(0., e3.y)) - alp(img, uv - float2(0., e3.y));
-  float3 N = normalize(float3(-hx * re * 7. - ax * 1.4, hy * re * 7. + ay * 1.4, 1.));
+  float2 dh = float2(hgt.sample(linearClamp, uv + float2(e.x, 0.)).r - hgt.sample(linearClamp, uv - float2(e.x, 0.)).r,
+                    -(hgt.sample(linearClamp, uv + float2(0., e.y)).r - hgt.sample(linearClamp, uv - float2(0., e.y)).r)) * u.heightScale;
+  float3 N = normalize(float3(-hx * re * 7. - ax * 1.4 + dh.x, hy * re * 7. + ay * 1.4 + dh.y, 1.));
 
   float2 t = u.tilt;
   float3 V = float3(0., 0., 1.);

@@ -16,10 +16,12 @@ public struct WalletDescription: Decodable {
     public struct Image: Decodable { public let file: String; public let width, height: Int }
     public struct Regions: Decodable { public let file: String; public let width, height: Int }
     public struct Shadow: Decodable { public let file: String; public let pad, offsetY, opacity: Float }
+    public struct Height: Decodable { public let file: String; public let scale: Float }
     public let image: Image
     public let regions: Regions
     public let materials: [WalletMaterial]
     public let shadow: Shadow
+    public let height: Height?
 }
 
 public struct WalletParams: Decodable {
@@ -41,7 +43,7 @@ public final class WalletRenderer {
     public let description: WalletDescription
     public let params: WalletParams
     private let walletPipeline, shadowPipeline: MTLRenderPipelineState
-    private let image, regions, shadow: MTLTexture
+    private let image, regions, shadow, height: MTLTexture
 
     /// - assets: the `assets/` folder (image.png, regions.png, shadow.png, card.json, params.json).
     /// - library: a library containing wallet.metal (the app's default library on iOS).
@@ -55,6 +57,8 @@ public final class WalletRenderer {
         image = try Self.premultipliedTexture(device, data(description.image.file), name: description.image.file)
         regions = try Self.greyTexture(device, data(description.regions.file), name: description.regions.file)
         shadow = try Self.greyTexture(device, data(description.shadow.file), name: description.shadow.file)
+        if let h = description.height { height = try Self.greyTexture(device, data(h.file), name: h.file) }
+        else { height = try Self.blankTexture(device) }
 
         func pipeline(_ fragment: String) throws -> MTLRenderPipelineState {
             guard let v = library.makeFunction(name: "quad_vertex") else { throw WalletError.noFunction("quad_vertex") }
@@ -128,7 +132,7 @@ public final class WalletRenderer {
 
     /// The wallet quad alone. `clipRect` = (left, top, right, bottom) in clip space.
     public func encodeWallet(_ enc: MTLRenderCommandEncoder, clipRect: SIMD4<Float>, tilt: SIMD2<Float>) {
-        // WalletUniforms in wallet.metal: tex.xy, tilt.xy, 6 × (metal, rough, relief, sheen, coat), crease, guard
+        // WalletUniforms in wallet.metal: tex.xy, tilt.xy, 6 × (metal, rough, relief, sheen, coat), crease, guard, heightScale
         var u: [Float] = [Float(description.image.width), Float(description.image.height), tilt.x, tilt.y]
         for i in 0..<6 {
             if i < description.materials.count {
@@ -140,11 +144,13 @@ public final class WalletRenderer {
         }
         u.append(params.relief.creases)
         u.append(params.light.guard)
+        u.append(description.height?.scale ?? 0)
         var rect = clipRect
         enc.setRenderPipelineState(walletPipeline)
         enc.setVertexBytes(&rect, length: MemoryLayout<SIMD4<Float>>.size, index: 0)
         enc.setFragmentTexture(image, index: 0)
         enc.setFragmentTexture(regions, index: 1)
+        enc.setFragmentTexture(height, index: 2)
         enc.setFragmentBytes(u, length: u.count * MemoryLayout<Float>.size, index: 0)
         enc.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
     }
@@ -175,6 +181,16 @@ public final class WalletRenderer {
         d.usage = .shaderRead
         guard let t = device.makeTexture(descriptor: d) else { throw WalletError.badImage(name) }
         t.replace(region: MTLRegionMake2D(0, 0, w, h), mipmapLevel: 0, withBytes: px, bytesPerRow: w * 4)
+        return t
+    }
+
+    /// 1 × 1 R8 zero, bound when the card has no height map.
+    private static func blankTexture(_ device: MTLDevice) throws -> MTLTexture {
+        let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .r8Unorm, width: 1, height: 1, mipmapped: false)
+        d.usage = .shaderRead
+        guard let t = device.makeTexture(descriptor: d) else { throw WalletError.badImage("blank") }
+        var z: UInt8 = 0
+        t.replace(region: MTLRegionMake2D(0, 0, 1, 1), mipmapLevel: 0, withBytes: &z, bytesPerRow: 1)
         return t
     }
 

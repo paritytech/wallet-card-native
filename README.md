@@ -112,6 +112,7 @@ The native code reads everything from `assets/`, so a new card needs no code cha
   - **`TUNED`** (`tools/bake.mjs`): per-material settings tuned by hand, applied to auto-detected regions. Currently leather uses rough 0.57, metal 0.16, relief 0.45. The detector's default leather relief of 0.9 turns every pore of a photo into a sharp glint.
 - **Hand-made regions.** If `card/regions.json` exists, it is used instead of the automatic pass. This is the detector's saved format `{W, H, regions:[{mat, p:{rough, metal, relief}}], rle}`. Use it when the automatic pass gets a card wrong.
 - **Shadow.** The image's alpha is downscaled to 320 px, padded, and Gaussian-blurred (§7).
+- **Logo** (optional, `card/logo.json` + `logo.svg` or `logo.png`). Pressed into the card: blended in like the design's fill (`color` at `opacity`), written as `height.png` (its coverage blurred by `bevelPx`) and given its own material region. The shader adds the slope of `height.png` × `depth` to the normal, so the pressed edge catches the moving light like the creases do. `center` and `width` are fractions of the card. SVGs are rasterized with AppKit (`tools/svg2png.swift`, macOS).
 
 ## 4. Assets
 
@@ -122,6 +123,7 @@ All of these are data, not colour. Decode them without colour management and upl
 | `image.png` | RGBA8, straight alpha | **premultiplied** RGBA8 (as WebGL's `UNPACK_PREMULTIPLY_ALPHA_WEBGL`), LINEAR, clamp, no mipmaps |
 | `regions.png` | 8-bit grey, value = region id × 40, 0 = none | R8, NEAREST, clamp. Decode as raw bytes |
 | `shadow.png` | 8-bit grey, blurred alpha | R8, LINEAR, clamp |
+| `height.png` | 8-bit grey, pressed-in relief (0 flat … 255 fully pressed), image size; only with a logo | R8, LINEAR, clamp; without it bind a 1 × 1 zero and `uHeightScale = 0` |
 
 **`card.json`:**
 ```jsonc

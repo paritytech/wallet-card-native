@@ -69,13 +69,14 @@
     var json = function (n) { return fetch(base + n).then(function (r) { if (!r.ok) throw new Error(base + n + ': ' + r.status); return r.json(); }); };
     var image = function (n) { return new Promise(function (ok, fail) { var i = new Image(); i.onload = function () { ok(i); }; i.onerror = function () { fail(new Error(base + n)); }; i.src = base + n; }); };
     return (cache[base] = json('card.json').then(function (card) {
-      return Promise.all([json('params.json'), image(card.image.file), image(card.regions.file), image(card.shadow.file)]).then(function (r) {
+      return Promise.all([json('params.json'), image(card.image.file), image(card.regions.file), image(card.shadow.file),
+        card.height ? image(card.height.file) : null]).then(function (r) {
         // regions.png as raw bytes (an id map, not a colour)
         var c = document.createElement('canvas'); c.width = r[2].width; c.height = r[2].height;
         var cx = c.getContext('2d', { willReadFrequently: true }); cx.drawImage(r[2], 0, 0);
         var rgba = cx.getImageData(0, 0, c.width, c.height).data, reg = new Uint8Array(c.width * c.height);
         for (var i = 0; i < reg.length; i++) reg[i] = rgba[i * 4];
-        return { card: card, params: r[0], img: r[1], reg: reg, shadow: r[3] };
+        return { card: card, params: r[0], img: r[1], reg: reg, shadow: r[3], height: r[4] };
       });
     }));
   }
@@ -110,6 +111,9 @@
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
     texture(gl, 2, gl.LINEAR);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, gl.RED, gl.UNSIGNED_BYTE, a.shadow);
+    texture(gl, 3, gl.LINEAR);                                           // pressed-in relief, or 1 × 1 zero
+    if (a.height) gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, gl.RED, gl.UNSIGNED_BYTE, a.height);
+    else gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, 1, 1, 0, gl.RED, gl.UNSIGNED_BYTE, new Uint8Array(1));
     var arr = function (f) { var x = new Float32Array(6); a.card.materials.forEach(function (m, i) { if (i < 6) x[i] = f(m); }); return x; };
     var R = { uMetal: arr(function (m) { return m.metal; }), uRough: arr(function (m) { return m.rough; }), uRelief: arr(function (m) { return m.relief; }),
       uSheen: arr(function (m) { return m.sheen; }), uCoat: arr(function (m) { return m.coat; }) };
@@ -134,6 +138,8 @@
       gl.uniform2f(loc(wallet, 'uTilt'), tilt[0], tilt[1]);
       gl.uniform1f(loc(wallet, 'uCrease'), a.params.relief.creases);
       gl.uniform1f(loc(wallet, 'uGuard'), a.params.light.guard);
+      gl.uniform1i(loc(wallet, 'uHeight'), 3);
+      gl.uniform1f(loc(wallet, 'uHeightScale'), a.card.height ? a.card.height.scale : 0);
       for (var k in R) gl.uniform1fv(loc(wallet, k), R[k]);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };
@@ -179,7 +185,9 @@
   WalletCard.prototype._init = function () {
     var a = this._assets, self = this;
     if (!a) return;
-    var gl = this._gl = this._canvas.getContext('webgl2', { premultipliedAlpha: true, alpha: true, antialias: false });
+    // preserveDrawingBuffer: frames are skipped while the light is still, so the canvas must keep its last
+    // frame when the page recomposites (without it the browser may show a cleared canvas)
+    var gl = this._gl = this._canvas.getContext('webgl2', { premultipliedAlpha: true, alpha: true, antialias: false, preserveDrawingBuffer: true });
     if (!gl) { console.error('wallet-card: WebGL2 is not available'); return; }
     this._draw = setUp(gl, a);
     if (!this._tilt) {

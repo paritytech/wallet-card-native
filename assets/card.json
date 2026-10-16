@@ -35,6 +35,14 @@
       "relief": 0.45,
       "sheen": 0,
       "coat": 0
+    },
+    {
+      "mat": "leather",
+      "metal": 0.16,
+      "rough": 0.5,
+      "relief": 0.3,
+      "sheen": 0.1,
+      "coat": 0.22
     }
   ],
   "shadow": {
@@ -42,5 +50,9 @@
     "pad": 0.2,
     "offsetY": 0.1,
     "opacity": 0.22
+  },
+  "height": {
+    "file": "height.png",
+    "scale": 1.3
   }
 }

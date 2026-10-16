@@ -4,7 +4,7 @@
 //
 // writes <target-dir>/wallet-card.js and <target-dir>/<assets-subdir>/ (default assets/wallet/):
 // image.png, regions.png, shadow.png, card.json, params.json. Run node tools/bake.mjs first.
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, rmSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const root = new URL('..', import.meta.url).pathname;
@@ -22,5 +22,6 @@ writeFileSync(join(target, 'wallet-card.js'), js);
 const out = resolve(target, sub);
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
-for (const f of ['image.png', 'regions.png', 'shadow.png', 'card.json', 'params.json']) copyFileSync(join(root, 'assets', f), join(out, f));
+for (const f of ['image.png', 'regions.png', 'shadow.png', 'height.png', 'card.json', 'params.json'])
+  if (existsSync(join(root, 'assets', f))) copyFileSync(join(root, 'assets', f), join(out, f));
 console.log(`wrote ${join(target, 'wallet-card.js')} (${(js.length / 1024).toFixed(1)} KB) and ${out}/`);

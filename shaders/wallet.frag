@@ -14,6 +14,8 @@ uniform vec2 uTilt;       // smoothed tilt, x right, y up, each -1..1
 uniform float uMetal[6], uRough[6], uRelief[6], uSheen[6], uCoat[6];
 uniform float uCrease;    // params.json relief.creases: 0 = the detector's 1-texel relief, 1 = crease scale
 uniform float uGuard;     // params.json light.guard: 0 = the detector's light path, 1 = never head-on
+uniform sampler2D uHeight;   // height.png, R8, LINEAR: pressed-in relief (a logo); 1×1 black when there is none
+uniform float uHeightScale;  // card.json height.scale; 0 = none
 
 float ss(float e0, float e1, float x) { float t = clamp((x - e0) / (e1 - e0), 0., 1.); return t * t * (3. - 2. * t); }
 float lum(vec2 p) { vec4 c = texture(uImg, p); return dot(c.rgb, vec3(.3, .59, .11)) * c.a; }
@@ -56,7 +58,10 @@ void main() {
   vec2 e3 = e * 4.;
   float ax = alp(uv + vec2(e3.x, 0.)) - alp(uv - vec2(e3.x, 0.));
   float ay = alp(uv + vec2(0., e3.y)) - alp(uv - vec2(0., e3.y));
-  vec3 N = normalize(vec3(-hx * re * 7. - ax * 1.4, hy * re * 7. + ay * 1.4, 1.));
+  // not in the detector: a pressed-in shape (height.png) tilts the normal along its bevelled edge
+  vec2 dh = vec2(texture(uHeight, uv + vec2(e.x, 0.)).r - texture(uHeight, uv - vec2(e.x, 0.)).r,
+               -(texture(uHeight, uv + vec2(0., e.y)).r - texture(uHeight, uv - vec2(0., e.y)).r)) * uHeightScale;
+  vec3 N = normalize(vec3(-hx * re * 7. - ax * 1.4 + dh.x, hy * re * 7. + ay * 1.4 + dh.y, 1.));
 
   // tilt moves the light and the reflected studio, never the geometry
   vec3 V = vec3(0., 0., 1.);

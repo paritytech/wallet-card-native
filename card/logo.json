@@ -1,0 +1,21 @@
+{
+  "_comment": "Logo pressed into the card. center and width are fractions of the card (0..1, from the top-left). The logo is blended like the design's fill (color at opacity) and pressed in: bevelPx is the width of its blurred edge in image pixels, depth how steep that edge is for the light. It also gets its own material region.",
+  "file": "logo.svg",
+  "center": [
+    0.105,
+    0.137
+  ],
+  "width": 0.088,
+  "color": "#51250f",
+  "opacity": 0.6,
+  "material": {
+    "mat": "leather",
+    "p": {
+      "rough": 0.5,
+      "metal": 0.16,
+      "relief": 0.3
+    }
+  },
+  "depth": 1.3,
+  "bevelPx": 1.5
+}

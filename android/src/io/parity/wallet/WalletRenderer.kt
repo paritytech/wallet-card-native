@@ -30,6 +30,9 @@ class CardDescription(json: JSONObject) {
     val shadowPad = json.getJSONObject("shadow").f("pad")
     val shadowOffsetY = json.getJSONObject("shadow").f("offsetY")
     val shadowOpacity = json.getJSONObject("shadow").f("opacity")
+    /** Pressed-in relief (a logo), or null. */
+    val heightFile: String? = json.optJSONObject("height")?.getString("file")
+    val heightScale = json.optJSONObject("height")?.f("scale") ?: 0f
 }
 
 class WalletParams(json: JSONObject) {
@@ -80,7 +83,7 @@ class WalletRenderer(private val src: WalletAssets) {
     private var walletProgram = 0
     private var shadowProgram = 0
     private var vao = 0
-    private val textures = IntArray(3)       // image, regions, shadow
+    private val textures = IntArray(4)       // image, regions, shadow, height
     private val regionArrays = Array(5) { FloatArray(6) }   // metal, rough, relief, sheen, coat; zero-filled to 6
     private val loc = HashMap<String, Int>()                // uniform locations, looked up once per program
     private fun u(program: Int, name: String) = loc.getOrPut("$program/$name") { glGetUniformLocation(program, name) }
@@ -90,7 +93,7 @@ class WalletRenderer(private val src: WalletAssets) {
         walletProgram = program(vert, src.text("wallet.frag"))
         shadowProgram = program(vert, src.text("shadow.frag"))
         vao = IntArray(1).also { glGenVertexArrays(1, it, 0) }[0]   // no attributes: the quad comes from gl_VertexID
-        glGenTextures(3, textures, 0)
+        glGenTextures(4, textures, 0)
 
         // image.png: premultiplied (as the web uploads it), row 0 first, no mipmaps
         val img = src.bitmap(card.imageFile, premultiplied = true)
@@ -99,6 +102,12 @@ class WalletRenderer(private val src: WalletAssets) {
         img.recycle()
         greyTexture(1, card.regionsFile, GL_NEAREST)
         greyTexture(2, card.shadowFile, GL_LINEAR)
+        card.heightFile?.let { greyTexture(3, it, GL_LINEAR) } ?: run {
+            bindTexture(3, GL_LINEAR)                          // 1 × 1 zero: no pressed-in relief
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, 1, 1, 0, GL_RED, GL_UNSIGNED_BYTE, ByteBuffer.allocateDirect(1))
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 4)
+        }
 
         card.materials.take(6).forEachIndexed { i, m ->
             regionArrays[0][i] = m.metal; regionArrays[1][i] = m.rough; regionArrays[2][i] = m.relief
@@ -132,6 +141,8 @@ class WalletRenderer(private val src: WalletAssets) {
         uniformRect(p, r, w, h)
         texUnit(p, "uImg", 0)
         texUnit(p, "uReg", 1)
+        texUnit(p, "uHeight", 3)
+        glUniform1f(u(p, "uHeightScale"), card.heightScale)
         glUniform2f(u(p, "uTex"), card.imageWidth.toFloat(), card.imageHeight.toFloat())
         glUniform2f(u(p, "uTilt"), tiltX, tiltY)
         glUniform1f(u(p, "uCrease"), params.creases)
@@ -153,7 +164,7 @@ class WalletRenderer(private val src: WalletAssets) {
 
     fun release() {
         loc.clear()
-        glDeleteTextures(3, textures, 0)
+        glDeleteTextures(4, textures, 0)
         glDeleteVertexArrays(1, intArrayOf(vao), 0)
         glDeleteProgram(walletProgram)
         glDeleteProgram(shadowProgram)
