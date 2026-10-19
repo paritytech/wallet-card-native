@@ -64,6 +64,18 @@ void main() {
                -(texture(uHeight, uv + vec2(0., e.y)).r - texture(uHeight, uv - vec2(0., e.y)).r)) * uHeightScale;
   vec3 N = normalize(vec3(-hx * re * 7. - ax * 1.4 + dh.x, hy * re * 7. + ay * 1.4 + dh.y, 1.));
 
+  // not in the detector: where the photo itself is in shadow (under the flap, in folds) the light can't reach,
+  // but the steep edge of that shadow reads as a steep slope. Take the darkest photo luminance within 7 texels
+  // (8 taps + this pixel), so the rim beside a shadow counts too, and there flatten the relief and keep
+  // highlights, sheen and coat out.
+  float lmin = dot(base, vec3(.3, .59, .11));
+  for (int k = 0; k < 8; k++) {
+    float a = float(k) * 0.785398;
+    lmin = min(lmin, lum(uv + vec2(cos(a), sin(a)) * e * 7.));
+  }
+  float occ = mix(1., ss(.03, .14, lmin), uOcclusion);
+  N = normalize(vec3(N.xy * mix(1., occ, uOcclusion), N.z));
+
   // tilt moves the light and the reflected studio, never the geometry
   vec3 V = vec3(0., 0., 1.);
   // not in the detector: with uGuard, tipping the top away lowers the light only to .3 (≈ 19° off the view axis),
@@ -75,9 +87,6 @@ void main() {
   vec3 R = reflect(-V, N); R.xy += vec2(-uTilt.x, uTilt.y) * 1.1; R = normalize(R);
 
   float shin = mix(500., 10., ro);
-  // not in the detector: where the photo itself is in shadow (under the flap, in folds) the light can't reach,
-  // but the steep edge of that shadow reads as a steep slope; keep highlights, sheen and coat out of it
-  float occ = mix(1., ss(.03, .14, dot(base, vec3(.3, .59, .11))), uOcclusion);
   float spec = pow(ndh, shin) * (1. - ro) * (1. - ro) * 2.2 * occ;
   vec3 dif = base * (.78 + .34 * ndl);
   vec3 env = envC(R, ro);

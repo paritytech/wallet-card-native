@@ -77,6 +77,17 @@ fragment float4 wallet_fragment(QuadOut in [[stage_in]],
                     -(hgt.sample(linearClamp, uv + float2(0., e.y)).r - hgt.sample(linearClamp, uv - float2(0., e.y)).r)) * u.heightScale;
   float3 N = normalize(float3(-hx * re * 7. - ax * 1.4 + dh.x, hy * re * 7. + ay * 1.4 + dh.y, 1.));
 
+  // not in the detector: where the photo itself is in shadow (under the flap, in folds) the light can't reach, but
+  // the steep edge of that shadow reads as a steep slope. Darkest photo luminance within 7 texels (8 taps + this
+  // pixel), so the rim beside a shadow counts too; there the relief is flattened and highlights kept out.
+  float lmin = dot(base, float3(.3, .59, .11));
+  for (int k = 0; k < 8; k++) {
+    float a = float(k) * 0.785398;
+    lmin = min(lmin, lum(img, uv + float2(cos(a), sin(a)) * e * 7.));
+  }
+  float occ = mix(1., ss(.03, .14, lmin), u.occlusion);   // photo shadows and their rim: no highlight
+  // ... and no steep relief either: the shadow's edge is not a slope, so it should not catch the light at all
+  N = normalize(float3(N.xy * mix(1., occ, u.occlusion), N.z));
   float2 t = u.tilt;
   float3 V = float3(0., 0., 1.);
   float ly = .6 + t.y * (t.y < 0. ? mix(1.5, .3, u.guard) : 1.5);   // light.guard: never head-on
@@ -86,7 +97,6 @@ fragment float4 wallet_fragment(QuadOut in [[stage_in]],
   float3 R = reflect(-V, N); R.xy += float2(-t.x, t.y) * 1.1; R = normalize(R);
 
   float shin = mix(500., 10., ro);
-  float occ = mix(1., ss(.03, .14, dot(base, float3(.3, .59, .11))), u.occlusion);   // photo shadows: no highlight
   float spec = precise::pow(ndh, shin) * (1. - ro) * (1. - ro) * 2.2 * occ;
   float3 dif = base * (.78 + .34 * ndl);
   float3 env = envC(R, ro);
