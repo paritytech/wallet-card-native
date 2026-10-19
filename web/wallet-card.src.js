@@ -140,6 +140,7 @@
       gl.uniform1f(loc(wallet, 'uGuard'), a.params.light.guard);
       gl.uniform1i(loc(wallet, 'uHeight'), 3);
       gl.uniform1f(loc(wallet, 'uHeightScale'), a.card.height ? a.card.height.scale : 0);
+      gl.uniform1f(loc(wallet, 'uOcclusion'), a.params.light.occlusion);
       for (var k in R) gl.uniform1fv(loc(wallet, k), R[k]);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };

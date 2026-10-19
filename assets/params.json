@@ -15,7 +15,8 @@
     "creases": 1
   },
   "light": {
-    "guard": 1
+    "guard": 1,
+    "occlusion": 1
   },
   "tilt": {
     "rest": [

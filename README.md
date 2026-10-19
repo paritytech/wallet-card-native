@@ -148,6 +148,7 @@ All of these are data, not colour. Decode them without colour management and upl
 | `render.maxFps` | 60 | most frames per second the card is drawn at; on 120 Hz screens more only doubles the cost |
 | `render.idle` | 0.002 | light movement (tilt units) below which a frame is not redrawn; filters hand tremor |
 | `relief.creases` | 1 | 0 = the detector's 1-texel relief exactly; 1 = crease-scale relief (§5) |
+| `light.occlusion` | 1 | 0 = the detector; 1 = where the photo itself is in shadow (under the flap, in folds) highlights, sheen and coat fade out, so the steep edge of a shadow never lights up |
 | `light.guard` | 1 | 0 = the detector's light path; 1 = the light never lines up with the view, so the whole card can't flood with highlight (§5) |
 | `tilt.rest` | [0.2, −0.4] | where the light sits while the phone is held still (shader tilt units); chosen where the creases catch the light best |
 | `tilt.amplitude` | 0.55 | how far a turn can move the light from `rest` |

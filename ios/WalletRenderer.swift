@@ -29,7 +29,7 @@ public struct WalletParams: Decodable {
     public struct Render: Decodable { public let maxScale, supersample: Float; public let maxFps: Int; public let idle: Float }
     public struct Tilt: Decodable { public let rest: [Double]; public let amplitude, softDeg, neutralTau, smoothing: Double }
     public struct Relief: Decodable { public let creases: Float }
-    public struct Light: Decodable { public let `guard`: Float }
+    public struct Light: Decodable { public let `guard`: Float; public let occlusion: Float }
     public let layout: Layout
     public let render: Render
     public let tilt: Tilt
@@ -132,7 +132,7 @@ public final class WalletRenderer {
 
     /// The wallet quad alone. `clipRect` = (left, top, right, bottom) in clip space.
     public func encodeWallet(_ enc: MTLRenderCommandEncoder, clipRect: SIMD4<Float>, tilt: SIMD2<Float>) {
-        // WalletUniforms in wallet.metal: tex.xy, tilt.xy, 6 × (metal, rough, relief, sheen, coat), crease, guard, heightScale
+        // WalletUniforms in wallet.metal: tex.xy, tilt.xy, 6 × (metal, rough, relief, sheen, coat), crease, guard, heightScale, occlusion
         var u: [Float] = [Float(description.image.width), Float(description.image.height), tilt.x, tilt.y]
         for i in 0..<6 {
             if i < description.materials.count {
@@ -145,6 +145,7 @@ public final class WalletRenderer {
         u.append(params.relief.creases)
         u.append(params.light.guard)
         u.append(description.height?.scale ?? 0)
+        u.append(params.light.occlusion)
         var rect = clipRect
         enc.setRenderPipelineState(walletPipeline)
         enc.setVertexBytes(&rect, length: MemoryLayout<SIMD4<Float>>.size, index: 0)

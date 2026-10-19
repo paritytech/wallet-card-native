@@ -18,7 +18,7 @@ vertex QuadOut quad_vertex(uint vid [[vertex_id]], constant float4 &rect [[buffe
   return o;
 }
 
-// Matches WalletRenderer.swift: 37 floats, 148 bytes.
+// Matches WalletRenderer.swift: 38 floats, 152 bytes.
 struct Region { float metal, rough, relief, sheen, coat; };
 struct WalletUniforms {
   float2 tex;                      // image.png size in pixels
@@ -27,6 +27,7 @@ struct WalletUniforms {
   float crease;                    // params.json relief.creases
   float guard;                     // params.json light.guard
   float heightScale;               // card.json height.scale; 0 = none
+  float occlusion;                 // params.json light.occlusion
 };
 
 constexpr sampler linearClamp(filter::linear, address::clamp_to_edge);
@@ -85,13 +86,14 @@ fragment float4 wallet_fragment(QuadOut in [[stage_in]],
   float3 R = reflect(-V, N); R.xy += float2(-t.x, t.y) * 1.1; R = normalize(R);
 
   float shin = mix(500., 10., ro);
-  float spec = precise::pow(ndh, shin) * (1. - ro) * (1. - ro) * 2.2;
+  float occ = mix(1., ss(.03, .14, dot(base, float3(.3, .59, .11))), u.occlusion);   // photo shadows: no highlight
+  float spec = precise::pow(ndh, shin) * (1. - ro) * (1. - ro) * 2.2 * occ;
   float3 dif = base * (.78 + .34 * ndl);
   float3 env = envC(R, ro);
   float3 metalC = base * .32 * (.7 + .3 * ndl) + env * base * 1.05 + spec * base * 1.8;
   float3 col = mix(dif + float3(spec) * .35 * (1. - me), metalC, me * .7);
-  col += sh * precise::pow(ndh, 5.) * .18 * (base + .4);
-  col += co * (precise::pow(ndh, 320.) * 1.1
+  col += sh * precise::pow(ndh, 5.) * .18 * (base + .4) * occ;
+  col += co * occ * (precise::pow(ndh, 320.) * 1.1
              + envC(reflect(-V, normalize(float3(N.xy * .3, 1.))) + float3(-t.x, t.y, 0.), .05).r * .05);
 
   return float4(col * c.a, c.a);
